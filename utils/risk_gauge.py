@@ -2,7 +2,6 @@
 Professional Risk Gauge and Advanced Visualizations Module
 Creates sophisticated gauge meters and high-tech charts for financial analysis
 """
-
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
@@ -279,60 +278,91 @@ class RiskGauge:
     def create_advanced_candlestick(self, data: pd.DataFrame) -> go.Figure:
         """Create professional candlestick chart with technical indicators."""
         
-        if data.empty or 'Date' not in data.columns:
+        if data.empty:
             return go.Figure()
         
-        fig = go.Figure()
+        # Check for date column ('Date' or 'Datetime')
+        date_col = 'Date' if 'Date' in data.columns else 'Datetime' if 'Datetime' in data.columns else None
+        if date_col is None:
+            print("Warning: No 'Date' or 'Datetime' column found in data")
+            return go.Figure()
+        
+        # Validate required columns
+        required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+        missing_cols = [col for col in required_cols if col not in data.columns]
+        if missing_cols:
+            print(f"Warning: Missing required columns: {missing_cols}")
+            return go.Figure()
+        
+        # Create a copy and convert date column to datetime
+        data = data.copy()
+        data[date_col] = pd.to_datetime(data[date_col], errors='coerce')
+        if data[date_col].isna().any():
+            print("Warning: Invalid or NaT values found in date column")
+            data = data.dropna(subset=[date_col])
+        
+        # Ensure numeric columns
+        for col in required_cols:
+            data[col] = pd.to_numeric(data[col], errors='coerce')
+        data = data.dropna(subset=required_cols)
+        
+        if data.empty:
+            print("Warning: No valid data after preprocessing")
+            return go.Figure()
+        
+        # Create subplots
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.03,
+            subplot_titles=('Stock Price', 'Volume'),
+            row_heights=[0.7, 0.3]
+        )
         
         # Add candlestick
         fig.add_trace(go.Candlestick(
-            x=data['Date'],
+            x=data[date_col],
             open=data['Open'],
             high=data['High'],
             low=data['Low'],
             close=data['Close'],
             name="Price",
             increasing_line_color='#00ff00',
-            decreasing_line_color='#ff0000'
-        ))
-        
-        # Add volume subplot
-        fig = make_subplots(
-            rows=2, cols=1,
-            shared_xaxes=True,
-            vertical_spacing=0.03,
-            subplot_titles=('Stock Price', 'Volume'),
-            row_width=[0.7, 0.3]
-        )
-        
-        fig.add_trace(go.Candlestick(
-            x=data['Date'],
-            open=data['Open'],
-            high=data['High'],
-            low=data['Low'],
-            close=data['Close'],
-            name="Price"
+            decreasing_line_color='#ff0000',
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Open: $%{open:.2f}<br>' +
+                          'High: $%{high:.2f}<br>' +
+                          'Low: $%{low:.2f}<br>' +
+                          'Close: $%{close:.2f}<br>' +
+                          '<extra></extra>'
         ), row=1, col=1)
         
+        # Add volume
         fig.add_trace(go.Bar(
-            x=data['Date'],
+            x=data[date_col],
             y=data['Volume'],
             name="Volume",
-            marker_color='lightblue'
+            marker_color='lightblue',
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Volume: %{y:,.0f}<br>' +
+                          '<extra></extra>'
         ), row=2, col=1)
         
         fig.update_layout(
             title='Professional Candlestick Analysis',
             yaxis_title='Stock Price (USD)',
+            yaxis2_title='Volume',
             xaxis_rangeslider_visible=False,
             height=600,
-            showlegend=False
-        )
-        
-        # Format dates
-        fig.update_xaxes(
-            tickformat='%m-%d-%y',
-            tickangle=45
+            showlegend=False,
+            hovermode='x unified',
+            xaxis2=dict(
+                type='date',
+                tickformat='%m-%d-%y',
+                tickangle=45,
+                showgrid=True,
+                hoverformat='%m-%d-%y'
+            )
         )
         
         return fig
