@@ -18,9 +18,26 @@ class PricePredictions:
         
     def _prepare_data(self) -> pd.DataFrame:
         """Prepare data for prediction models."""
-        # Sort by date if index is datetime
-        if pd.api.types.is_datetime64_any_dtype(self.data.index):
-            self.data = self.data.sort_index()
+        # Handle Datetime column or index
+        if 'Datetime' in self.data.columns:
+            self.data['Datetime'] = pd.to_datetime(self.data['Datetime'], errors='coerce')
+            self.data = self.data.set_index('Datetime')
+        elif 'Date' in self.data.columns:
+            self.data['Date'] = pd.to_datetime(self.data['Date'], errors='coerce')
+            self.data = self.data.rename(columns={'Date': 'Datetime'})
+            self.data = self.data.set_index('Datetime')
+        elif pd.api.types.is_datetime64_any_dtype(self.data.index):
+            self.data.index = pd.to_datetime(self.data.index, errors='coerce')
+        else:
+            raise ValueError("No valid Datetime or Date column/index found in data")
+        
+        # Check for invalid Datetime values
+        if self.data.index.isna().any():
+            print("Warning: NaT values found in Datetime index")
+            self.data = self.data.dropna()
+        
+        # Sort by date
+        self.data = self.data.sort_index()
         
         # Calculate additional features
         self.data['Returns'] = self.data['Close'].pct_change()
@@ -195,20 +212,21 @@ class PricePredictions:
         lookback_days = min(30, len(self.data))
         historical_data = self.data.iloc[-lookback_days:]
         
+        # Historical trace
         fig.add_trace(go.Scatter(
             x=historical_data.index,
             y=historical_data['Close'],
             mode='lines',
             name='Historical Prices',
-            line=dict(color='blue', width=2)
+            line=dict(color='blue', width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%Y}<br>' +
+                          'Close: $%{y:.2f}<br>' +
+                          '<extra></extra>'
         ))
         
         # Generate future dates
-        if pd.api.types.is_datetime64_any_dtype(self.data.index):
-            last_date = self.data.index[-1]
-            future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=days)
-        else:
-            future_dates = [f"Day +{i}" for i in range(1, days + 1)]
+        last_date = historical_data.index[-1]
+        future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=days, freq='D')
         
         # Prediction line
         fig.add_trace(go.Scatter(
@@ -217,7 +235,10 @@ class PricePredictions:
             mode='lines+markers',
             name='Predictions',
             line=dict(color='red', width=2, dash='dash'),
-            marker=dict(size=6)
+            marker=dict(size=6),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%Y}<br>' +
+                          'Predicted: $%{y:.2f}<br>' +
+                          '<extra></extra>'
         ))
         
         # Connect last historical point to first prediction
@@ -227,7 +248,10 @@ class PricePredictions:
             mode='lines',
             name='Connection',
             line=dict(color='gray', width=1, dash='dot'),
-            showlegend=False
+            showlegend=False,
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%Y}<br>' +
+                          'Price: $%{y:.2f}<br>' +
+                          '<extra></extra>'
         ))
         
         # Add confidence bands (simple approximation)
@@ -244,7 +268,10 @@ class PricePredictions:
             mode='lines',
             name='Upper Confidence',
             line=dict(color='rgba(255,0,0,0.3)', width=0),
-            showlegend=False
+            showlegend=False,
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%Y}<br>' +
+                          'Upper: $%{y:.2f}<br>' +
+                          '<extra></extra>'
         ))
         
         fig.add_trace(go.Scatter(
@@ -255,7 +282,10 @@ class PricePredictions:
             line=dict(color='rgba(255,0,0,0.3)', width=0),
             fill='tonexty',
             fillcolor='rgba(255,0,0,0.1)',
-            showlegend=False
+            showlegend=False,
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%Y}<br>' +
+                          'Lower: $%{y:.2f}<br>' +
+                          '<extra></extra>'
         ))
         
         fig.update_layout(
@@ -263,7 +293,13 @@ class PricePredictions:
             xaxis_title='Date',
             yaxis_title='Price ($)',
             hovermode='x unified',
-            showlegend=True
+            showlegend=True,
+            xaxis=dict(
+                type='date',
+                showticklabels=True,  # Show date labels on axis
+                showgrid=True,
+                hoverformat='%m-%d-%Y'  # MM-DD-YYYY format on hover
+            )
         )
         
         return fig
