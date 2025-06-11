@@ -1145,5 +1145,3 @@ with tab3:
 with tab4:
     advanced_data_analysis()
 
-if __name__ == "__main__':
-    main()
