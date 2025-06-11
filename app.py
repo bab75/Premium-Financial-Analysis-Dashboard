@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import numpy
+import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
@@ -105,7 +105,7 @@ def data_upload_section():
     # Previous Data Upload
     st.subheader("📈 Historical Stock Data")
     previous_file = st.file_uploader(
-        "Upload Previous Stock Data (Excel/CSV)",  # Fixed string and removed redundant text
+        "Upload Previous Stock Data (Excel/CSV)",
         type=["xlsx", "xls", "csv"],
         key="previous_data_file",
         help="Upload previous period stock data for Phase 1 comparative analysis"
@@ -985,22 +985,26 @@ def advanced_data_analysis_section():
                     volatility = returns.std() * np.sqrt(252) * 100
                     total_return = ((data_clean['Close'].iloc[-1] / data_clean['Close'].iloc[0]) - 1) * 100
                     
-                    risk_levels = np.linspace(0, 100, 20)
+                    risk_levels = np.linspace(0, 50, 20)
                     return_levels = np.linspace(-50, 150, 20)
                     X, Y = np.meshgrid(risk_levels, return_levels)
                     Z = np.exp(-((X - volatility)**2 + (Y - total_return)**2) / 1000)
                     
-                    fig = go.Figure(data=[go.Surface(
-                        x=X, y=Y, z=Z,
-                        colorscale='Viridis',
-                        colorbar=dict(title="Performance Score")
-                    )])
+                    fig = go.Figure(data=[
+                        go.Surface(
+                            x=X,
+                            y=Y,
+                            z=Z,
+                            colorscale='Viridis',
+                            colorbar=dict(title="Performance Score")
+                        )
+                    ])
                     
                     fig.update_layout(
-                        title='3D Factor Analysis: Risk vs Return vs Performance',
+                        title='Risk vs Return vs Performance',
                         scene=dict(
-                            xaxis_title='Risk Level (%)',
-                            yaxis_title='Return Potential (%)',
+                            xaxis_title='Volatility (%)',
+                            yaxis_title='Return (%)',
                             zaxis_title='Performance Score'
                         ),
                         height=600
@@ -1010,31 +1014,31 @@ def advanced_data_analysis_section():
                     
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        st.metric("Current Risk", f"{volatility:.1f}%")
+                        st.metric("Current Volatility", f"{volatility:.2f}%")
                     with col2:
-                        st.metric("Total Return", f"{total_return:.1f}%")
+                        st.metric("Total Return", f"{total_return:.2f}%")
                     with col3:
                         performance_score = min(100, max(0, 50 + total_return/2))
-                        st.metric("Performance Score", f"{performance_score:.1f}")
+                        st.metric("Performance Score", f"{performance_score:.2f}%")
                 else:
-                    st.warning("Need more data points for 3D analysis (minimum 20 days)")
+                    st.warning("Insufficient data for 3D analysis (minimum 20 points)")
             elif visualization_option == "Market Overview Dashboard":
                 if st.session_state.current_data is not None:
-                    fig = viz.create_market_overview_dashboard()
+                    fig = viz.create_market_cap_chart()
                     if fig:
                         st.plotly_chart(fig, use_container_width=True)
     
     with insights_tab:
         st.subheader("💡 Trading Insights")
         
-        if len(data_clean) >= 50:
+        if len(data_clean) >= 2:
             tech_indicators = TechnicalIndicators(data_clean)
             signals = tech_indicators.get_trading_signals()
-            analytics = Analytics(historical_data=data_clean)
+            analytics = Analytics()
             
             st.markdown("### Trading Signals")
             
-            signal_counts = {"buy": 0, "sell": 0, "hold": 0}
+            signal_counts = {"buy": 0, "sell": 0, "neutral": 0}
             for signal, data in signals.items():
                 signal_val = data.get('signal', '').lower()
                 if 'buy' in signal_val:
@@ -1042,15 +1046,15 @@ def advanced_data_analysis_section():
                 elif 'sell' in signal_val:
                     signal_counts["sell"] += 1
                 else:
-                    signal_counts["hold"] += 1
+                    signal_counts["neutral"] += 1
             
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("🟢 Buy Signals", signal_counts["buy"])
+                st.metric("Buy Signals", signal_counts["buy"])
             with col2:
-                st.metric("🔴 Sell Signals", signal_counts["sell"])
+                st.metric("Sell Signals", signal_counts["sell"])
             with col3:
-                st.metric("🟡 Neutral Signals", signal_counts["hold"])
+                st.metric("Neutral Signals", signal_counts["neutral"])
             
             st.markdown("### Signal Analysis")
             for signal, data in signals.items():
@@ -1059,10 +1063,10 @@ def advanced_data_analysis_section():
                 
                 with st.expander(f"{signal} - {signal_value}"):
                     st.markdown(f"**Current Signal:** {signal_value}")
-                    st.markdown(f"**Signal Strength:** {strength}")
+                    st.markdown(f"**Strength:** {strength}")
                     
                     if signal == 'RSI':
-                        rsi_val = tech_indicators.calculate_rsi()[-1]
+                        rsi_val = signals[signal].get('value', 0)
                         st.markdown(f"**Current RSI:** {rsi_val:.2f}")
                         if rsi_val > 70:
                             st.warning("Stock may be overbought")
@@ -1070,78 +1074,70 @@ def advanced_data_analysis_section():
                             st.success("Stock may be oversold")
             
             st.markdown("### Strategy Recommendations")
-            strategies = analytics.get_trading_strategies(signals)
+            strategies = analytics.get_trading_strategies()
             
             if strategies:
                 for i, strategy in enumerate(strategies):
                     with st.expander(f"Strategy {i+1}: {strategy.get('name', 'N/A')}"):
                         st.markdown(f"**Type:** {strategy.get('type', 'N/A')}")
-                        st.markdown(f"**Risk:** {strategy.get('risk_level', 'N/A')}")
-                        st.markdown(f"**Timeframe:** {strategy.get('time_horizon', 'N/A')}")
+                        st.markdown(f"**Risk:** {strategy.get('risk', 'N/A')}")
+                        st.markdown(f"**Timeframe:** {strategy.get('timeframe', 'N/A')}")
                         st.markdown(f"**Description:** {strategy.get('description', 'N/A')}")
-            
-            st.markdown("### Risk Assessment")
-            risk_metrics = analytics.get_risk_metrics()
-            
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Beta", f"{risk_metrics.get('beta', 'N/A'):.2f}")
-            with col2:
-                st.metric("Sharpe Ratio", f"{risk_metrics.get('sharpe_ratio', 'N/A'):.2f}")
-            with col3:
-                st.metric("Max Drawdown", f"{risk_metrics.get('max_drawdown', 'N/A'):.2f}%")
-            with col4:
-                st.metric("VaR (95%)", f"{risk_metrics.get('var_95', 'N/A'):.2f}%")
+                        
         else:
-            st.markdown("Need at least 50 days of data for reliable insights.")
+            st.warning("Insufficient data for insights (minimum 2 points)")
 
 # Custom CSS
 st.markdown("""
 <style>
-.main > div {
+.main {
     padding: 2rem;
 }
-.metric-card {
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    padding: 1rem;
-    border-radius: 10px;
-    color: white;
-    margin: 0.5rem 0;
-}
 .success-card {
-    background: linear-gradient(135deg, #4CAF50, #45a049);
-    padding: 1rem;
-    border-radius: 10px;
+    background: linear-gradient(45deg, #4caf50, #81c784);
+    padding: 1.5rem;
+    border-radius: 8px;
     color: white;
+    margin-bottom: 1rem;
 }
 .warning-card {
-    background: linear-gradient(135deg, #ff9800, #f57c00);
-    padding: 1rem;
-    border-radius: 10px;
+    background: linear-gradient(45deg, #ff9800, #ffb300);
+    padding: 1.5rem;
+    border-radius: 8px;
     color: white;
+    margin-bottom: 1rem;
+}
+.metric-card {
+    background: linear-gradient(45deg, #2196f3, #64b5f6);
+    padding: 1.5rem;
+    border-radius: 8px;
+    color: white;
+    margin-bottom: 1rem;
 }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📈 Financial Analysis Dashboard")
-st.markdown("### Comprehensive Stock Analysis with Technical Indicators")
+st.title("📊 Portfolio Analysis Dashboard")
+st.markdown("Comprehensive stock analysis with advanced visualizations")
 
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📖 Data Upload", 
-    "📊 Phase 1: Comparative Analysis", 
+    "📖 Data Upload",
+    "📊 Phase 1: Comparative Analysis",
     "📈 Phase 2: Deep Analysis",
-    "🔮 Advanced Analytics"
+    "🔗 Advanced Analytics"
 ])
 
 with tab1:
     data_upload_section()
 
 with tab2:
-    phase1_comparative_analysis()
+    phase1_comparative_analysis_section()
 
 with tab3:
-    phase2_deep_analysis()
+    phase2_deep_analysis_section()
 
 with tab4:
-    advanced_data_analysis()
+    advanced_data_analysis_section()
 
+if __name__ == "__main__":
+    main()
