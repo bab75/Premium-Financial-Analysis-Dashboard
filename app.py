@@ -102,15 +102,13 @@ def data_upload_section():
         except Exception as e:
             st.error(f"Error processing current data: {str(e)}")
     
-    # Previous Data Upload
+   # Previous Data Upload
     st.subheader("📈 Previous Stock Data (For Comparative Analysis)")
     previous_file = st.file_uploader(
-        "Upload Previous Stock Data (Excel/CSV/CSV Previous),
+        "Upload Previous Stock Data (Excel/CSV)",
         type=['xlsx', 'xls', 'csv'],
         key="previous_data_file",
-        type=['csv'],
-        key="previous_data",
-        help="Upload previous period stock data for for Phase 1 comparative analysis"
+        help="Upload previous period stock data for Phase 1 comparative analysis"
     )
     
     if previous_data is not None:
