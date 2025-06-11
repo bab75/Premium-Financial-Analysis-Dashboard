@@ -34,7 +34,7 @@ class Visualizations:
         # Create color map for sectors
         unique_sectors = top_10['Sector'].unique()
         color_map = {sector: self.colors['sectors'][i % len(self.colors['sectors'])] 
-                    for i, sector in enumerate(unique_sectors)}
+                     for i, sector in enumerate(unique_sectors)}
         
         colors = [color_map[sector] for sector in top_10['Sector']]
         
@@ -45,11 +45,10 @@ class Visualizations:
             textposition='auto',
             marker_color=colors,
             hovertemplate='<b>%{x}</b><br>' +
-                         'Market Cap: $%{y:,.0f}<br>' +
-                         'Sector: %{customdata}<br>' +
-                         '<extra></extra>'
->,
-                         customdata=top_10['Sector']
+                          'Market Cap: $%{y:,.0f}<br>' +
+                          'Sector: %{customdata}<br>' +
+                          '<extra></extra>',
+            customdata=top_10['Sector']
         ))
         
         fig.update_layout(
@@ -116,8 +115,8 @@ class Visualizations:
             zmid=0,
             text=np.round(corr_matrix.values, 2),
             texttemplate='%{text}',
-            textfont={"size": "10},
-            hovertemplate='%{x} vs %{%y}<br>Correlation: {y:.3f}<extra></extra>'
+            textfont={"size": 10},
+            hovertemplate='%{x} vs %{y}<br>Correlation: %{z:.3f}<extra></extra>'
         ))
         
         fig.update_layout(
@@ -136,13 +135,12 @@ class Visualizations:
         fig = go.Figure()
         
         # Create color map for industries (top 10 most common)
-        top_industries = top_industries = self.daily_data['Industry'].value_counts().head(10).index
-        color_map = {industry: color_map {industry: self.colors['sectors'][i % len(self.colors['sectors'])] 
-                    for i in, industry in enumerate(top_industries)}
+        top_industries = self.daily_data['Industry'].value_counts().head(10).index
+        color_map = {industry: self.colors['sectors'][i % len(self.colors['sectors'])] 
+                     for i, industry in enumerate(top_industries)}
         
         for industry in top_industries:
-            for industry_data in top_industries:
-                industry_data = self.daily_data[self.daily_data['Industry'] == data['Industry'] == industry]
+            industry_data = self.daily_data[self.daily_data['Industry'] == industry]
             
             fig.add_trace(go.Scatter(
                 x=industry_data['Volume'],
@@ -156,18 +154,16 @@ class Visualizations:
                     line=dict(width=1, color='white')
                 ),
                 hovertemplate='<b>%{customdata[0]}</b><br>' +
-                             'Volume: %{x}: %,<br>' +
-                             'Change: %{y:.2f}%<br>' +
-                             'Market Cap: $%{$y:customdata[1]:,.0f}<br>' +
-                             'Industry: %{customdata[2]}<br>' +
-                             '<extra></extra>'
-                            customdata=np.column_stack((
-                                industry_data['Symbol'],
-                            customdata=np.column_stack((
-                                industry_data['Symbol'],
-                                industry_data['Market Cap'],
-                                'industry_data['Industry']
-                            ))
+                              'Volume: %{x:,.0f}<br>' +
+                              'Change: %{y:.2f}%<br>' +
+                              'Market Cap: $%{customdata[1]:,.0f}<br>' +
+                              'Industry: %{customdata[2]}<br>' +
+                              '<extra></extra>',
+                customdata=np.column_stack((
+                    industry_data['Symbol'],
+                    industry_data['Market Cap'],
+                    industry_data['Industry']
+                ))
             ))
         
         # Add remaining industries as "Other"
@@ -185,11 +181,11 @@ class Visualizations:
                     line=dict(width=1, color='white')
                 ),
                 hovertemplate='<b>%{customdata[0]}</b><br>' +
-                             'Volume: %{x:,.0f}<br>' +
-                             'Change: %{y:.2f}%<br>' +
-                             'Market Cap: $%{customdata[1]:,.0f}<br>' +
-                             'Industry: %{customdata[2]}<br>' +
-                             '<extra></extra>',
+                              'Volume: %{x:,.0f}<br>' +
+                              'Change: %{y:.2f}%<br>' +
+                              'Market Cap: $%{customdata[1]:,.0f}<br>' +
+                              'Industry: %{customdata[2]}<br>' +
+                              '<extra></extra>',
                 customdata=np.column_stack((
                     other_data['Symbol'],
                     other_data['Market Cap'],
@@ -282,8 +278,8 @@ class Visualizations:
             name='Close Price',
             line=dict(color=self.colors['bullish'], width=2),
             hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
-                         'Close: $%{y:.2f}<br>' +
-                         '<extra></extra>'
+                          'Close: $%{y:.2f}<br>' +
+                          '<extra></extra>'
         ))
         
         if 'Adj Close' in data.columns:
@@ -294,8 +290,8 @@ class Visualizations:
                 name='Adjusted Close',
                 line=dict(color=self.colors['bearish'], width=2, dash='dash'),
                 hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
-                             'Adj Close: $%{y:.2f}<br>' +
-                             '<extra></extra>'
+                              'Adj Close: $%{y:.2f}<br>' +
+                              '<extra></extra>'
             ))
         
         fig.update_layout(
@@ -348,8 +344,8 @@ class Visualizations:
             name='Close Price',
             line=dict(color=self.colors['bullish'], width=2),
             hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
-                         'Close: $%{y:.2f}<br>' +
-                         '<extra></extra>'
+                          'Close: $%{y:.2f}<br>' +
+                          '<extra></extra>'
         ), row=1, col=1)
         
         # Volume bars
@@ -370,8 +366,8 @@ class Visualizations:
             marker_color=colors,
             opacity=0.7,
             hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
-                         'Volume: %{y:,.0f}<br>' +
-                         '<extra></extra>'
+                          'Volume: %{y:,.0f}<br>' +
+                          '<extra></extra>'
         ), row=2, col=1)
         
         # Volume moving average
@@ -382,8 +378,8 @@ class Visualizations:
             name='Volume MA(20)',
             line=dict(color='orange', width=2),
             hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
-                         'Volume MA(20): %{y:,.0f}<br>' +
-                         '<extra></extra>'
+                          'Volume MA(20): %{y:,.0f}<br>' +
+                          '<extra></extra>'
         ), row=2, col=1)
         
         fig.update_layout(
@@ -436,10 +432,10 @@ class Visualizations:
                 opacity=0.8
             ),
             hovertemplate='<b>%{text}</b><br>' +
-                         'Avg Change: %{y:.2f}%<br>' +
-                         'Volatility: %{x:.2f}%<br>' +
-                         'Avg Market Cap: $%{customdata:,.0f}<br>' +
-                         '<extra></extra>',
+                          'Avg Change: %{y:.2f}%<br>' +
+                          'Volatility: %{x:.2f}%<br>' +
+                          'Avg Market Cap: $%{customdata:,.0f}<br>' +
+                          '<extra></extra>',
             customdata=sector_stats['Avg_Market_Cap']
         ))
         
@@ -464,16 +460,16 @@ class Visualizations:
         fig = make_subplots(
             rows=2, cols=2,
             subplot_titles=['Market Cap Distribution', 'Sector Performance', 
-                           'Volume vs Change', 'Country Distribution'],
+                            'Volume vs Change', 'Country Distribution'],
             specs=[[{"type": "pie"}, {"type": "bar"}],
                    [{"type": "scatter"}, {"type": "bar"}]]
         )
         
         # Market Cap Distribution (Pie)
         market_cap_bins = pd.cut(self.daily_data['Market Cap'], 
-                                bins=[0, 1e9, 10e9, 50e9, float('inf')],
-                                labels=['Small (<$1B)', 'Mid ($1B-$10B)', 
-                                       'Large ($10B-$50B)', 'Mega (>$50B)'])
+                                 bins=[0, 1e9, 10e9, 50e9, float('inf')],
+                                 labels=['Small (<$1B)', 'Mid ($1B-$10B)', 
+                                         'Large ($10B-$50B)', 'Mega (>$50B)'])
         market_cap_dist = market_cap_bins.value_counts()
         
         fig.add_trace(go.Pie(
