@@ -210,84 +210,125 @@ class Visualizations:
         return fig
     
     def create_candlestick_chart(self) -> go.Figure:
-        """Create candlestick chart for historical data."""
-        if self.historical_data is None:
+        """Create candlestick chart for historical data with proper date display."""
+        if self.historical_data is None or len(self.historical_data) == 0:
             return go.Figure()
+        
+        df = self.historical_data.copy()
+        # Ensure Date column exists in string format
+        if 'Date' in df.columns:
+            df['Date'] = pd.to_datetime(df['Date']).dt.strftime('%Y-%m-%d')
+        elif 'Datetime' in df.columns:
+            df['Date'] = pd.to_datetime(df['Datetime']).dt.strftime('%Y-%m-%d')
+        else:
+            df['Date'] = pd.to_datetime(df.index).strftime('%Y-%m-%d')
         
         fig = go.Figure(data=[
             go.Candlestick(
-                x=self.historical_data.index,
-                open=self.historical_data['Open'],
-                high=self.historical_data['High'],
-                low=self.historical_data['Low'],
-                close=self.historical_data['Close'],
+                x=df['Date'],
+                open=df['Open'],
+                high=df['High'],
+                low=df['Low'],
+                close=df['Close'],
                 increasing_line_color=self.colors['bullish'],
                 decreasing_line_color=self.colors['bearish'],
-                name='Price'
+                name='Price',
+                hovertemplate=
+                'Date: %{x}<br>' +
+                'Open: $%{open:.2f}<br>' +
+                'High: $%{high:.2f}<br>' +
+                'Low: $%{low:.2f}<br>' +
+                'Close: $%{close:.2f}<extra></extra>'
             )
         ])
         
         fig.update_layout(
             title='Candlestick Chart',
-            xaxis_title='Time Period',
+            xaxis_title='Date',
             yaxis_title='Price ($)',
             xaxis_rangeslider_visible=False,
             hovermode='x unified',
             xaxis=dict(
-                showticklabels=False,  # Hide date labels from axis
+                tickformat='%Y-%m-%d',
+                tickangle=45,
                 showgrid=True,
-                hoverformat='%m-%d-%y'  # Show MM-DD-YY format on hover
+                showticklabels=True  # Show date labels
             )
         )
         
         return fig
     
     def create_price_trends_chart(self) -> go.Figure:
-        """Create price trends chart showing Close and Adj Close."""
-        if self.historical_data is None:
+        """Create price trends chart showing Close and Adj Close with proper date display."""
+        if self.historical_data is None or len(self.historical_data) == 0:
             return go.Figure()
+        
+        df = self.historical_data.copy()
+        # Ensure Date column exists in string format
+        if 'Date' in df.columns:
+            df['Date'] = pd.to_datetime(df['Date']).dt.strftime('%Y-%m-%d')
+        elif 'Datetime' in df.columns:
+            df['Date'] = pd.to_datetime(df['Datetime']).dt.strftime('%Y-%m-%d')
+        else:
+            df['Date'] = pd.to_datetime(df.index).strftime('%Y-%m-%d')
         
         fig = go.Figure()
         
         fig.add_trace(go.Scatter(
-            x=self.historical_data.index,
-            y=self.historical_data['Close'],
+            x=df['Date'],
+            y=df['Close'],
             mode='lines',
             name='Close Price',
-            line=dict(color=self.colors['bullish'], width=2)
+            line=dict(color=self.colors['bullish'], width=2),
+            hovertemplate=
+            'Date: %{x}<br>' +
+            'Close: $%{y:.2f}<extra></extra>'
         ))
         
-        if 'Adj Close' in self.historical_data.columns:
+        if 'Adj Close' in df.columns:
             fig.add_trace(go.Scatter(
-                x=self.historical_data.index,
-                y=self.historical_data['Adj Close'],
+                x=df['Date'],
+                y=df['Adj Close'],
                 mode='lines',
                 name='Adjusted Close',
-                line=dict(color=self.colors['bearish'], width=2, dash='dash')
+                line=dict(color=self.colors['bearish'], width=2, dash='dash'),
+                hovertemplate=
+                'Date: %{x}<br>' +
+                'Adj Close: $%{y:.2f}<extra></extra>'
             ))
         
         fig.update_layout(
             title='Price Trends Over Time',
-            xaxis_title='Time Period',
+            xaxis_title='Date',
             yaxis_title='Price ($)',
             hovermode='x unified',
             showlegend=True,
             xaxis=dict(
-                showticklabels=False,  # Hide date labels from axis
+                tickformat='%Y-%m-%d',
+                tickangle=45,
                 showgrid=True,
-                hoverformat='%m-%d-%y'  # Show MM-DD-YY format on hover
+                showticklabels=True  # Show date labels
             )
         )
         
         return fig
     
     def create_volume_chart(self) -> go.Figure:
-        """Create volume analysis chart."""
-        if self.historical_data is None:
+        """Create volume analysis chart with proper date display."""
+        if self.historical_data is None or len(self.historical_data) == 0:
             return go.Figure()
         
+        df = self.historical_data.copy()
+        # Ensure Date column exists in string format
+        if 'Date' in df.columns:
+            df['Date'] = pd.to_datetime(df['Date']).dt.strftime('%Y-%m-%d')
+        elif 'Datetime' in df.columns:
+            df['Date'] = pd.to_datetime(df['Datetime']).dt.strftime('%Y-%m-%d')
+        else:
+            df['Date'] = pd.to_datetime(df.index).strftime('%Y-%m-%d')
+        
         # Calculate volume moving average
-        vol_ma = self.historical_data['Volume'].rolling(window=20, min_periods=1).mean()
+        vol_ma = df['Volume'].rolling(window=20, min_periods=1).mean()
         
         fig = make_subplots(
             rows=2, cols=1,
@@ -299,50 +340,64 @@ class Visualizations:
         
         # Price chart
         fig.add_trace(go.Scatter(
-            x=self.historical_data.index,
-            y=self.historical_data['Close'],
+            x=df['Date'],
+            y=df['Close'],
             mode='lines',
             name='Close Price',
-            line=dict(color=self.colors['bullish'], width=2)
+            line=dict(color=self.colors['bullish'], width=2),
+            hovertemplate=
+            'Date: %{x}<br>' +
+            'Close: $%{y:.2f}<extra></extra>'
         ), row=1, col=1)
         
         # Volume bars with proper date hover
         colors = []
-        for i in range(len(self.historical_data)):
+        for i in range(len(df)):
             if i == 0:
                 colors.append(self.colors['neutral'])
             else:
-                if self.historical_data['Close'].iloc[i] > self.historical_data['Close'].iloc[i-1]:
+                if df['Close'].iloc[i] > df['Close'].iloc[i-1]:
                     colors.append(self.colors['bullish'])
                 else:
                     colors.append(self.colors['bearish'])
         
         fig.add_trace(go.Bar(
-            x=self.historical_data.index,
-            y=self.historical_data['Volume'],
+            x=df['Date'],
+            y=df['Volume'],
             name='Volume',
             marker_color=colors,
-            opacity=0.7
+            opacity=0.7,
+            hovertemplate=
+            'Date: %{x}<br>' +
+            'Volume: %{y:,.0f}<extra></extra>'
         ), row=2, col=1)
         
         # Volume moving average
         fig.add_trace(go.Scatter(
-            x=self.historical_data.index,
+            x=df['Date'],
             y=vol_ma,
             mode='lines',
             name='Volume MA(20)',
-            line=dict(color='orange', width=2)
+            line=dict(color='orange', width=2),
+            hovertemplate=
+            'Date: %{x}<br>' +
+            'Volume MA(20): %{y:,.0f}<extra></extra>'
         ), row=2, col=1)
         
         fig.update_layout(
             title='Price and Volume Analysis',
             hovermode='x unified',
-            showlegend=True
+            showlegend=True,
+            xaxis2=dict(  # Configure bottom x-axis (Volume)
+                title='Date',
+                tickformat='%Y-%m-%d',
+                tickangle=45,
+                showgrid=True,
+                showticklabels=True
+            ),
+            yaxis1=dict(title='Price ($)'),
+            yaxis2=dict(title='Volume')
         )
-        
-        fig.update_yaxes(title_text='Price ($)', row=1, col=1)
-        fig.update_yaxes(title_text='Volume', row=2, col=1)
-        fig.update_xaxes(title_text='Time Period', row=2, col=1, showticklabels=False, hoverformat='%m-%d-%y')
         
         return fig
     
