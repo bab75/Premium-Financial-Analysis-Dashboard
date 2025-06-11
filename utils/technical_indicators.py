@@ -19,10 +19,21 @@ class TechnicalIndicators:
             if col not in self.data.columns:
                 raise ValueError(f"Missing required column: {col}")
         
-        # Sort by date if index is datetime
-        if pd.api.types.is_datetime64_any_dtype(self.data.index):
-            self.data = self.data.sort_index()
+        # Handle Datetime column or index
+        if 'Datetime' in self.data.columns:
+            self.data['Datetime'] = pd.to_datetime(self.data['Datetime'])
+        elif 'Date' in self.data.columns:
+            self.data['Date'] = pd.to_datetime(self.data['Date'])
+            self.data = self.data.rename(columns={'Date': 'Datetime'})
+        elif pd.api.types.is_datetime64_any_dtype(self.data.index):
+            self.data = self.data.reset_index()
+            self.data = self.data.rename(columns={'index': 'Datetime'})
+            self.data['Datetime'] = pd.to_datetime(self.data['Datetime'])
+        else:
+            raise ValueError("No valid Datetime or Date column found in data")
         
+        # Sort by Datetime
+        self.data = self.data.sort_values('Datetime')
         return self.data
     
     def calculate_sma(self, period: int) -> pd.Series:
@@ -126,36 +137,48 @@ class TechnicalIndicators:
         
         # Price line
         fig.add_trace(go.Scatter(
-            x=self.data.index,
+            x=self.data['Datetime'],
             y=self.data['Close'],
             mode='lines',
             name='Close Price',
-            line=dict(color='#1f77b4', width=2)
+            line=dict(color='#1f77b4', width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Close: $%{y:.2f}<br>' +
+                          '<extra></extra>'
         ))
         
         # Moving Averages
         fig.add_trace(go.Scatter(
-            x=self.data.index,
+            x=self.data['Datetime'],
             y=self.calculate_sma(10),
             mode='lines',
             name='SMA 10',
-            line=dict(color='#ff7f0e', width=1)
+            line=dict(color='#ff7f0e', width=1),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'SMA 10: $%{y:.2f}<br>' +
+                          '<extra></extra>'
         ))
         
         fig.add_trace(go.Scatter(
-            x=self.data.index,
+            x=self.data['Datetime'],
             y=self.calculate_sma(20),
             mode='lines',
             name='SMA 20',
-            line=dict(color='#2ca02c', width=1)
+            line=dict(color='#2ca02c', width=1),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'SMA 20: $%{y:.2f}<br>' +
+                          '<extra></extra>'
         ))
         
         fig.add_trace(go.Scatter(
-            x=self.data.index,
+            x=self.data['Datetime'],
             y=self.calculate_sma(50),
             mode='lines',
             name='SMA 50',
-            line=dict(color='#d62728', width=1)
+            line=dict(color='#d62728', width=1),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'SMA 50: $%{y:.2f}<br>' +
+                          '<extra></extra>'
         ))
         
         fig.update_layout(
@@ -165,6 +188,7 @@ class TechnicalIndicators:
             hovermode='x unified',
             showlegend=True,
             xaxis=dict(
+                type='date',
                 showticklabels=False,  # Hide date labels from axis
                 showgrid=True,
                 hoverformat='%m-%d-%y'  # Show MM-DD-YY format on hover
@@ -181,11 +205,14 @@ class TechnicalIndicators:
         
         # RSI Line
         fig.add_trace(go.Scatter(
-            x=self.data.index,
+            x=self.data['Datetime'],
             y=rsi,
             mode='lines',
             name='RSI',
-            line=dict(color='#9467bd', width=2)
+            line=dict(color='#9467bd', width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'RSI: %{y:.2f}<br>' +
+                          '<extra></extra>'
         ))
         
         # Overbought/Oversold Lines
@@ -195,10 +222,16 @@ class TechnicalIndicators:
         
         fig.update_layout(
             title='Relative Strength Index (RSI)',
-            xaxis_title='Date',
+            xaxis_title='Time Period',
             yaxis_title='RSI',
             yaxis=dict(range=[0, 100]),
-            hovermode='x unified'
+            hovermode='x unified',
+            xaxis=dict(
+                type='date',
+                showticklabels=False,
+                showgrid=True,
+                hoverformat='%m-%d-%y'
+            )
         )
         
         return fig
@@ -216,38 +249,54 @@ class TechnicalIndicators:
         
         # MACD and Signal Lines
         fig.add_trace(go.Scatter(
-            x=self.data.index,
+            x=self.data['Datetime'],
             y=macd_data['MACD'],
             mode='lines',
             name='MACD',
-            line=dict(color='#1f77b4', width=2)
+            line=dict(color='#1f77b4', width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'MACD: %{y:.2f}<br>' +
+                          '<extra></extra>'
         ), row=1, col=1)
         
         fig.add_trace(go.Scatter(
-            x=self.data.index,
+            x=self.data['Datetime'],
             y=macd_data['Signal'],
             mode='lines',
             name='Signal',
-            line=dict(color='#ff7f0e', width=2)
+            line=dict(color='#ff7f0e', width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Signal: %{y:.2f}<br>' +
+                          '<extra></extra>'
         ), row=1, col=1)
         
         # Histogram
         colors = ['green' if val >= 0 else 'red' for val in macd_data['Histogram']]
         fig.add_trace(go.Bar(
-            x=self.data.index,
+            x=self.data['Datetime'],
             y=macd_data['Histogram'],
             name='Histogram',
-            marker_color=colors
+            marker_color=colors,
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Histogram: %{y:.2f}<br>' +
+                          '<extra></extra>'
         ), row=2, col=1)
         
         fig.update_layout(
             title='MACD (Moving Average Convergence Divergence)',
-            xaxis_title='Date',
-            hovermode='x unified'
+            hovermode='x unified',
+            showlegend=True,
+            xaxis2=dict(
+                type='date',
+                showticklabels=False,
+                showgrid=True,
+                hoverformat='%m-%d-%y'
+            )
         )
         
         fig.update_yaxes(title_text='MACD', row=1, col=1)
         fig.update_yaxes(title_text='Histogram', row=2, col=1)
+        fig.update_xaxes(title_text='Time Period', row=2, col=1)
         
         return fig
     
@@ -259,49 +308,68 @@ class TechnicalIndicators:
         
         # Upper Band
         fig.add_trace(go.Scatter(
-            x=self.data.index,
+            x=self.data['Datetime'],
             y=bb_data['Upper'],
             mode='lines',
             name='Upper Band',
             line=dict(color='rgba(255,0,0,0.3)', width=1),
-            showlegend=True
+            showlegend=True,
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Upper Band: $%{y:.2f}<br>' +
+                          '<extra></extra>'
         ))
         
         # Lower Band
         fig.add_trace(go.Scatter(
-            x=self.data.index,
+            x=self.data['Datetime'],
             y=bb_data['Lower'],
             mode='lines',
             name='Lower Band',
             line=dict(color='rgba(255,0,0,0.3)', width=1),
             fill='tonexty',
             fillcolor='rgba(255,0,0,0.1)',
-            showlegend=True
+            showlegend=True,
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Lower Band: $%{y:.2f}<br>' +
+                          '<extra></extra>'
         ))
         
         # Middle Band (SMA)
         fig.add_trace(go.Scatter(
-            x=self.data.index,
+            x=self.data['Datetime'],
             y=bb_data['Middle'],
             mode='lines',
             name='Middle Band (SMA 20)',
-            line=dict(color='blue', width=1)
+            line=dict(color='blue', width=1),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Middle Band: $%{y:.2f}<br>' +
+                          '<extra></extra>'
         ))
         
         # Price
         fig.add_trace(go.Scatter(
-            x=self.data.index,
+            x=self.data['Datetime'],
             y=self.data['Close'],
             mode='lines',
             name='Close Price',
-            line=dict(color='black', width=2)
+            line=dict(color='black', width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Close: $%{y:.2f}<br>' +
+                          '<extra></extra>'
         ))
         
         fig.update_layout(
             title='Bollinger Bands',
-            xaxis_title='Date',
+            xaxis_title='Time Period',
             yaxis_title='Price ($)',
-            hovermode='x unified'
+            hovermode='x unified',
+            showlegend=True,
+            xaxis=dict(
+                type='date',
+                showticklabels=False,
+                showgrid=True,
+                hoverformat='%m-%d-%y'
+            )
         )
         
         return fig
