@@ -110,7 +110,8 @@ def data_upload_section():
         key="previous_data_file",
         type=['csv'],
         key="previous_data",
-        help="Upload previous period stock data for for Phase 1 comparative analysis")
+        help="Upload previous period stock data for for Phase 1 comparative analysis"
+    )
     
     if previous_data is not None:
         try:
