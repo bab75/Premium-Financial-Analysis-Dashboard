@@ -176,7 +176,7 @@ class Visualizations:
                 name='Other Industries',
                 marker=dict(
                     size=np.sqrt(other_data['Market Cap']) / 1e5,
-                    color='black',
+                    color='lightgray',
                     opacity=0.5,
                     line=dict(width=1, color='white')
                 ),
@@ -194,9 +194,9 @@ class Visualizations:
             ))
         
         fig.update_layout(
-            title='Performance vs Volume Analysis',
+            title='Performance vs Volume Analysis (Bubble size = Market Cap)',
             xaxis_title='Trading Volume',
-            yaxis_title='% Volatility',
+            yaxis_title='% Change',
             xaxis_type='log',
             hovermode='closest',
             legend=dict(
@@ -224,42 +224,38 @@ class Visualizations:
                 data['Date'] = pd.to_datetime(data['Date'])
                 data.set_index('Date', inplace=True)
         
-        try:
-            fig = go.Figure(data=[
-                go.Candlestick(
-                    x=data.index,
-                    open=data['Open'],
-                    high=data['High'],
-                    low=data['Low'],
-                    close=data['Close'],
-                    increasing_line_color=self.colors['bullish'],
-                    decreasing_line_color=self.colors['bearish'],
-                    name='Price',
-                    hoverinfo='x+y+name'
-                )
-            ])
-        
-            fig.update_layout(
-                title='Candlestick Chart',
-                xaxis_title='Time Period',
-                yaxis_title='Price ($)',
-                xaxis_rangeslider_visible=False,
-                hovermode='x unified',
-                xaxis=dict(
-                    type='date',
-                    showticklabels=False,  # Hide date labels from axis
-                    showgrid=True,
-                    hoverformat='%Y-%m-%d'  # Show YYYY-MM-DD format on hover
-                )
+        fig = go.Figure(data=[
+            go.Candlestick(
+                x=data.index,
+                open=data['Open'],
+                high=data['High'],
+                low=data['Low'],
+                close=data['Close'],
+                increasing_line_color=self.colors['bullish'],
+                decreasing_line_color=self.colors['bearish'],
+                name='Price',
+                hoverinfo='x+y+name'
             )
+        ])
         
-            return fig
-        except Exception as e:
-            print(f"Error creating candlestick chart: {str(e)}")
-            return go.Figure()
+        fig.update_layout(
+            title='Candlestick Chart',
+            xaxis_title='Time Period',
+            yaxis_title='Price ($)',
+            xaxis_rangeslider_visible=False,
+            hovermode='x unified',
+            xaxis=dict(
+                type='date',
+                showticklabels=False,  # Hide date labels from axis
+                showgrid=True,
+                hoverformat='%m-%d-%y'  # Show MM-DD-YY format on hover
+            )
+        )
+        
+        return fig
     
-    def create_price_trends(self) -> go.Figure:
-        """Create price trend chart for historical data."""
+    def create_price_trends_chart(self) -> go.Figure:
+        """Create price trends chart showing Close and Adj Close."""
         if self.historical_data is None:
             return go.Figure()
         
@@ -275,48 +271,44 @@ class Visualizations:
         
         fig = go.Figure()
         
-        try:
+        fig.add_trace(go.Scatter(
+            x=data.index,
+            y=data['Close'],
+            mode='lines',
+            name='Close Price',
+            line=dict(color=self.colors['bullish'], width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Close: $%{y:.2f}<br>' +
+                          '<extra></extra>'
+        ))
+        
+        if 'Adj Close' in data.columns:
             fig.add_trace(go.Scatter(
                 x=data.index,
-                y=data['Close'],
+                y=data['Adj Close'],
                 mode='lines',
-                name='Close Price',
-                line=dict(color=self.colors['bullish'], width=2),
-                hovertemplate='<b>Date:</b> %{x}<br>' +
-                              'Close: $%{y:.2f}<br>' +
+                name='Adjusted Close',
+                line=dict(color=self.colors['bearish'], width=2, dash='dash'),
+                hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                              'Adj Close: $%{y:.2f}<br>' +
                               '<extra></extra>'
             ))
         
-            if 'Adj Close' in data.columns:
-                fig.add_trace(go.Scatter(
-                    x=data.index,
-                    y=data['Adj Close'],
-                    mode='lines',
-                    name='Normalized Close',
-                    line=dict(color=self.colors['bearish'], width=2, dash='dash'),
-                    hovertemplate='<b>Date:</b> %{x}<br>' +
-                                  'Normalized Close: $%{y}<br>' +
-                                  '<extra></extra>'
-                ))
-        
-            fig.update_layout(
-                title='Price Trend Analysis',
-                xaxis_title='Date',
-                yaxis_title='Price ($)',
-                hovermode='x unified',
-                showlegend=True,
-                xaxis=dict(
-                    type='date',
-                    showticklabels=False,  # Hide date labels from axis
-                    showgrid=True,
-                    hoverformat='%Y-%m-%d'  # Show YYYY-MM-DD format on hover
-                )
+        fig.update_layout(
+            title='Price Trends Over Time',
+            xaxis_title='Time Period',
+            yaxis_title='Price ($)',
+            hovermode='x unified',
+            showlegend=True,
+            xaxis=dict(
+                type='date',
+                showticklabels=False,  # Hide date labels from axis
+                showgrid=True,
+                hoverformat='%m-%d-%y'  # Show MM-DD-YY format on hover
             )
+        )
         
-            return fig
-        except Exception as e:
-            print(f"Error creating price trends chart: {str(e)}")
-            return go.Figure()
+        return fig
     
     def create_volume_chart(self) -> go.Figure:
         """Create volume analysis chart."""
@@ -336,81 +328,77 @@ class Visualizations:
         # Calculate volume moving average
         vol_ma = data['Volume'].rolling(window=20, min_periods=1).mean()
         
-        try:
-            fig = make_subplots(
-                rows=2, cols=1,
-                shared_xaxes=True,
-                vertical_spacing=0.05,
-                row_heights=[0.7, 0.3],
-                subplot_titles=['Price', 'Volume']
-            )
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.05,
+            row_heights=[0.7, 0.3],
+            subplot_titles=['Price', 'Volume']
+        )
         
-            # Price chart
-            fig.add_trace(go.Scatter(
-                x=data.index,
-                y=data['Close'],
-                mode='lines',
-                name='Close Price',
-                line=dict(color=self.colors['bullish'], width=2),
-                hovertemplate='<b>Date:</b> %{x}<br>' +
-                              'Close: $%{y:.2f}<br>' +
-                              '<extra></extra>'
-            ), row=1, col=1)
+        # Price chart
+        fig.add_trace(go.Scatter(
+            x=data.index,
+            y=data['Close'],
+            mode='lines',
+            name='Close Price',
+            line=dict(color=self.colors['bullish'], width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Close: $%{y:.2f}<br>' +
+                          '<extra></extra>'
+        ), row=1, col=1)
         
-            # Volume bars
-            colors = []
-            for i in range(len(data)):
-                if i == 0:
-                    colors.append(self.colors['neutral'])
+        # Volume bars
+        colors = []
+        for i in range(len(data)):
+            if i == 0:
+                colors.append(self.colors['neutral'])
+            else:
+                if data['Close'].iloc[i] > data['Close'].iloc[i-1]:
+                    colors.append(self.colors['bullish'])
                 else:
-                    if data['Close'].iloc[i] > data['Close'].iloc[i-1]:
-                        colors.append(self.colors['bullish'])
-                    else:
-                        colors.append(self.colors['bearish'])
+                    colors.append(self.colors['bearish'])
         
-            fig.add_trace(go.Bar(
-                x=data.index,
-                y=data['Volume'],
-                name='Volume',
-                marker_color=colors,
-                opacity=0.7,
-                hovertemplate='<b>Date:</b> %{x}<br>' +
-                              'Volume: %{y:,.0f}<br>' +
-                              '<extra></extra>'
-            ), row=2, col=1)
+        fig.add_trace(go.Bar(
+            x=data.index,
+            y=data['Volume'],
+            name='Volume',
+            marker_color=colors,
+            opacity=0.7,
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Volume: %{y:,.0f}<br>' +
+                          '<extra></extra>'
+        ), row=2, col=1)
         
-            # Volume moving average
-            fig.add_trace(go.Scatter(
-                x=data.index,
-                y=vol_ma,
-                mode='lines',
-                name='Volume MA(20)',
-                line=dict(color='orange', width=2),
-                hovertemplate='<b>Date:</b> %{x}<br>' +
-                              'Volume MA(20): %{y:,.0f}<br>' +
-                              '<extra></extra>'
-            ), row=2, col=1)
+        # Volume moving average
+        fig.add_trace(go.Scatter(
+            x=data.index,
+            y=vol_ma,
+            mode='lines',
+            name='Volume MA(20)',
+            line=dict(color='orange', width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Volume MA(20): %{y:,.0f}<br>' +
+                          '<extra></extra>'
+        ), row=2, col=1)
         
-            fig.update_layout(
-                title='Price and Volume Analysis',
-                hovermode='x unified',
-                showlegend=True,
-                xaxis2=dict(
-                    type='date',
-                    showticklabels=False,  # Hide date labels from axis
-                    showgrid=True,
-                    hoverformat='%Y-%m-%d'  # Show YYYY-MM-DD format on hover
-                )
+        fig.update_layout(
+            title='Price and Volume Analysis',
+            hovermode='x unified',
+            showlegend=True,
+            xaxis2=dict(
+                type='date',
+                showticklabels=False,  # Hide date labels from axis
+                showgrid=True,
+                hoverformat='%m-%d-%y'  # Show MM-DD-YY format on hover
             )
+        )
         
-            fig.update_yaxes(title_text='Price ($)', row=1, col=1)
-            fig.update_yaxes(title_text='Volume', row=2, col=1)
-            fig.update_xaxes(title_text='Time Period', row=2, col=1)
+        fig.update_yaxes(title_text='Price ($)', row=1, col=1)
+        fig.update_yaxes(title_text='Volume', row=2, col=1)
+        fig.update_xaxes(title_text='Time Period', row=2, col=1)
         
-            return fig
-        except Exception as e:
-            print(f"Error creating volume chart: {str(e)}")
-            return go.Figure()
+        return fig
     
     def create_sector_performance_chart(self) -> go.Figure:
         """Create sector performance comparison chart."""
@@ -427,111 +415,103 @@ class Visualizations:
         sector_stats.columns = ['Avg_Change', 'Volatility', 'Avg_Volume', 'Avg_Market_Cap']
         sector_stats = sector_stats.reset_index()
         
-        try:
-            fig = go.Figure()
+        fig = go.Figure()
         
-            fig.add_trace(go.Scatter(
-                x=sector_stats['Volatility'],
-                y=sector_stats['Avg_Change'],
-                mode='markers+text',
-                text=sector_stats['Sector'],
-                textposition='top center',
-                marker=dict(
-                    size=np.sqrt(sector_stats['Avg_Market_Cap']) / 1e6,
-                    color=sector_stats['Avg_Change'],
-                    colorscale='RdYlGn',
-                    colorbar=dict(title="Avg % Change"),
-                    line=dict(width=2, color='white'),
-                    opacity=0.8
-                ),
-                hovertemplate='<b>%{text}</b><br>' +
-                              'Avg Change: %{y:.2f}%<br>' +
-                              'Volatility: %{x:.2f}%<br>' +
-                              'Avg Market Cap: $%{customdata:,.0f}<br>' +
-                              '<extra></extra>',
-                customdata=sector_stats['Avg_Market_Cap']
-            ))
+        fig.add_trace(go.Scatter(
+            x=sector_stats['Volatility'],
+            y=sector_stats['Avg_Change'],
+            mode='markers+text',
+            text=sector_stats['Sector'],
+            textposition='top center',
+            marker=dict(
+                size=np.sqrt(sector_stats['Avg_Market_Cap']) / 1e6,
+                color=sector_stats['Avg_Change'],
+                colorscale='RdYlGn',
+                colorbar=dict(title="Avg % Change"),
+                line=dict(width=2, color='white'),
+                opacity=0.8
+            ),
+            hovertemplate='<b>%{text}</b><br>' +
+                          'Avg Change: %{y:.2f}%<br>' +
+                          'Volatility: %{x:.2f}%<br>' +
+                          'Avg Market Cap: $%{customdata:,.0f}<br>' +
+                          '<extra></extra>',
+            customdata=sector_stats['Avg_Market_Cap']
+        ))
         
-            # Add quadrant lines
-            fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
-            fig.add_vline(x=sector_stats['Volatility'].median(), line_dash="dash", line_color="gray", opacity=0.5)
+        # Add quadrant lines
+        fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
+        fig.add_vline(x=sector_stats['Volatility'].median(), line_dash="dash", line_color="gray", opacity=0.5)
         
-            fig.update_layout(
-                title='Sector Performance vs Volatility',
-                xaxis_title='Volatility (Std Dev of % Change)',
-                yaxis_title='Average % Change',
-                hovermode='closest'
-            )
+        fig.update_layout(
+            title='Sector Performance vs Volatility (Bubble size = Avg Market Cap)',
+            xaxis_title='Volatility (Std Dev of % Change)',
+            yaxis_title='Average % Change',
+            hovermode='closest'
+        )
         
-            return fig
-        except Exception as e:
-            print(f"Error creating sector performance chart: {str(e)}")
-            return go.Figure()
+        return fig
     
     def create_market_overview_dashboard(self) -> go.Figure:
         """Create a comprehensive market overview dashboard."""
         if self.daily_data is None:
             return go.Figure()
         
-        try:
-            fig = make_subplots(
-                rows=2, cols=2,
-                subplot_titles=['Market Cap Distribution', 'Sector Performance', 
-                                'Volume vs Change', 'Country Distribution'],
-                specs=[[{"type": "pie"}, {"type": "bar"}],
-                       [{"type": "scatter"}, {"type": "bar"}]]
-            )
+        fig = make_subplots(
+            rows=2, cols=2,
+            subplot_titles=['Market Cap Distribution', 'Sector Performance', 
+                            'Volume vs Change', 'Country Distribution'],
+            specs=[[{"type": "pie"}, {"type": "bar"}],
+                   [{"type": "scatter"}, {"type": "bar"}]]
+        )
         
-            # Market Cap Distribution (Pie)
-            market_cap_bins = pd.cut(self.daily_data['Market Cap'], 
-                                     bins=[0, 1e9, 10e9, 50e9, float('inf')],
-                                     labels=['Small (<$1B)', 'Mid ($1B-$10B)', 
-                                             'Large ($10B-$50B)', 'Mega (>$50B)'])
-            market_cap_dist = market_cap_bins.value_counts()
+        # Market Cap Distribution (Pie)
+        market_cap_bins = pd.cut(self.daily_data['Market Cap'], 
+                                 bins=[0, 1e9, 10e9, 50e9, float('inf')],
+                                 labels=['Small (<$1B)', 'Mid ($1B-$10B)', 
+                                         'Large ($10B-$50B)', 'Mega (>$50B)'])
+        market_cap_dist = market_cap_bins.value_counts()
         
-            fig.add_trace(go.Pie(
-                labels=market_cap_dist.index,
-                values=market_cap_dist.values,
-                name="Market Cap"
-            ), row=1, col=1)
+        fig.add_trace(go.Pie(
+            labels=market_cap_dist.index,
+            values=market_cap_dist.values,
+            name="Market Cap"
+        ), row=1, col=1)
         
-            # Sector Performance (Bar)
-            sector_perf = self.daily_data.groupby('Sector')['% Change'].mean().sort_values(ascending=True)
+        # Sector Performance (Bar)
+        sector_perf = self.daily_data.groupby('Sector')['% Change'].mean().sort_values(ascending=True)
         
-            fig.add_trace(go.Bar(
-                y=sector_perf.index,
-                x=sector_perf.values,
-                orientation='h',
-                name="Sector Performance",
-                marker_color=['green' if x > 0 else 'red' for x in sector_perf.values]
-            ), row=1, col=2)
+        fig.add_trace(go.Bar(
+            y=sector_perf.index,
+            x=sector_perf.values,
+            orientation='h',
+            name="Sector Performance",
+            marker_color=['green' if x > 0 else 'red' for x in sector_perf.values]
+        ), row=1, col=2)
         
-            # Volume vs Change (Scatter)
-            fig.add_trace(go.Scatter(
-                x=self.daily_data['Volume'],
-                y=self.daily_data['% Change'],
-                mode='markers',
-                name="Volume vs Change",
-                marker_color=self.daily_data['% Change'],
-                marker_colorscale='RdYlGn'
-            ), row=2, col=1)
+        # Volume vs Change (Scatter)
+        fig.add_trace(go.Scatter(
+            x=self.daily_data['Volume'],
+            y=self.daily_data['% Change'],
+            mode='markers',
+            name="Volume vs Change",
+            marker_color=self.daily_data['% Change'],
+            marker_colorscale='RdYlGn'
+        ), row=2, col=1)
         
-            # Country Distribution (Bar)
-            country_dist = self.daily_data['Country'].value_counts().head(10)
+        # Country Distribution (Bar)
+        country_dist = self.daily_data['Country'].value_counts().head(10)
         
-            fig.add_trace(go.Bar(
-                x=country_dist.index,
-                y=country_dist.values,
-                name="Country Distribution"
-            ), row=2, col=2)
+        fig.add_trace(go.Bar(
+            x=country_dist.index,
+            y=country_dist.values,
+            name="Country Distribution"
+        ), row=2, col=2)
         
-            fig.update_layout(
-                title_text="Market Overview Dashboard",
-                showlegend=False,
-                height=800
-            )
+        fig.update_layout(
+            title_text="Market Overview Dashboard",
+            showlegend=False,
+            height=800
+        )
         
-            return fig
-        except Exception as e:
-            print(f"Error creating market overview dashboard: {str(e)}")
-            return go.Figure()
+        return fig
