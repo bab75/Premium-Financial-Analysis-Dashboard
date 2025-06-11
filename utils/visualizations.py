@@ -1,279 +1,119 @@
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import plotly.express as px
 from plotly.subplots import make_subplots
-from typing import Optional
+from typing import Dict, Any
 
-class Visualizations:
-    """Create interactive visualizations for financial data analysis."""
+class TechnicalIndicators:
+    """Calculate and visualize technical indicators for stock data."""
     
-    def __init__(self, daily_data: Optional[pd.DataFrame] = None, historical_data: Optional[pd.DataFrame] = None):
-        self.daily_data = daily_data
-        self.historical_data = historical_data
-        
-        # Color schemes for financial charts
+    def __init__(self, data: pd.DataFrame):
+        self.data = data.copy()
         self.colors = {
             'bullish': '#26a69a',
             'bearish': '#ef5350',
             'neutral': '#78909c',
-            'volume': '#42a5f5',
-            'sectors': px.colors.qualitative.Set3
+            'signal': 'orange'
         }
+        
+        # Ensure Datetime column is in datetime format
+        if 'Datetime' in self.data.columns:
+            self.data['Datetime'] = pd.to_datetime(self.data['Datetime'])
+        elif 'Date' in self.data.columns:
+            self.data['Date'] = pd.to_datetime(self.data['Date'])
+            self.data = self.data.rename(columns={'Date': 'Datetime'})
+        else:
+            # If no Datetime column, assume index is datetime
+            self.data = self.data.reset_index()
+            if 'index' in self.data.columns:
+                self.data = self.data.rename(columns={'index': 'Datetime'})
+                self.data['Datetime'] = pd.to_datetime(self.data['Datetime'])
     
-    def create_market_cap_chart(self) -> go.Figure:
-        """Create bar chart of top 10 stocks by market cap."""
-        if self.daily_data is None:
-            return go.Figure()
+    def calculate_sma(self, window: int = 20) -> pd.Series:
+        """Calculate Simple Moving Average."""
+        return self.data['Close'].rolling(window=window, min_periods=1).mean()
+    
+    def calculate_ema(self, window: int = 20) -> pd.Series:
+        """Calculate Exponential Moving Average."""
+        return self.data['Close'].ewm(span=window, adjust=False).mean()
+    
+    def calculate_rsi(self, periods: int = 14) -> pd.Series:
+        """Calculate Relative Strength Index."""
+        delta = self.data['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=periods, min_periods=1).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=periods, min_periods=1).mean()
+        rs = gain / loss
+        return 100 - (100 / (1 + rs))
+    
+    def calculate_macd(self) -> tuple[pd.Series, pd.Series, pd.Series]:
+        """Calculate MACD, Signal Line, and Histogram."""
+        ema12 = self.data['Close'].ewm(span=12, adjust=False).mean()
+        ema26 = self.data['Close'].ewm(span=26, adjust=False).mean()
+        macd = ema12 - ema26
+        signal = macd.ewm(span=9, adjust=False).mean()
+        histogram = macd - signal
+        return macd, signal, histogram
+    
+    def calculate_bollinger_bands(self, window: int = 20, num_std: int = 2) -> tuple[pd.Series, pd.Series, pd.Series]:
+        """Calculate Bollinger Bands."""
+        sma = self.calculate_sma(window)
+        std = self.data['Close'].rolling(window=window, min_periods=1).std()
+        upper_band = sma + (std * num_std)
+        lower_band = sma - (std * num_std)
+        return sma, upper_band, lower_band
+    
+    def get_bollinger_position(self) -> str:
+        """Determine price position relative to Bollinger Bands."""
+        sma, upper, lower = self.calculate_bollinger_bands()
+        current_price = self.data['Close'].iloc[-1]
+        if current_price > upper.iloc[-1]:
+            return "Above Upper Band"
+        elif current_price < lower.iloc[-1]:
+            return "Below Lower Band"
+        else:
+            return "Within Bands"
+    
+    def get_trading_signals(self) -> Dict[str, Dict[str, Any]]:
+        """Generate trading signals based on indicators."""
+        signals = {}
         
-        # Get top 10 by market cap
-        top_10 = self.daily_data.nlargest(10, 'Market Cap')
+        # RSI Signal
+        rsi = self.calculate_rsi()
+        if rsi.iloc[-1] > 70:
+            signals['RSI'] = {'signal': 'Sell', 'strength': 'Strong'}
+        elif rsi.iloc[-1] < 30:
+            signals['RSI'] = {'signal': 'Buy', 'strength': 'Strong'}
+        else:
+            signals['RSI'] = {'signal': 'Hold', 'strength': 'Neutral'}
         
+        # MACD Signal
+        macd, signal, _ = self.calculate_macd()
+        if macd.iloc[-1] > signal.iloc[-1] and macd.iloc[-2] <= signal.iloc[-2]:
+            signals['MACD'] = {'signal': 'Buy', 'strength': 'Moderate'}
+        elif macd.iloc[-1] < signal.iloc[-1] and macd.iloc[-2] >= signal.iloc[-2]:
+            signals['MACD'] = {'signal': 'Sell', 'strength': 'Moderate'}
+        else:
+            signals['MACD'] = {'signal': 'Hold', 'strength': 'Neutral'}
+        
+        # Bollinger Bands Signal
+        bb_position = self.get_bollinger_position()
+        if bb_position == "Above Upper Band":
+            signals['Bollinger Bands'] = {'signal': 'Sell', 'strength': 'Strong'}
+        elif bb_position == "Below Lower Band":
+            signals['Bollinger Bands'] = {'signal': 'Buy', 'strength': 'Strong'}
+        else:
+            signals['Bollinger Bands'] = {'signal': 'Hold', 'strength': 'Neutral'}
+        
+        return signals
+    
+    def create_moving_averages_chart(self) -> go.Figure:
+        """Create chart showing SMA and EMA with price."""
         fig = go.Figure()
         
-        # Create color map for sectors
-        unique_sectors = top_10['Sector'].unique()
-        color_map = {sector: self.colors['sectors'][i % len(self.colors['sectors'])] 
-                     for i, sector in enumerate(unique_sectors)}
-        
-        colors = [color_map[sector] for sector in top_10['Sector']]
-        
-        fig.add_trace(go.Bar(
-            x=top_10['Symbol'],
-            y=top_10['Market Cap'],
-            text=[f"${val/1e9:.1f}B" for val in top_10['Market Cap']],
-            textposition='auto',
-            marker_color=colors,
-            hovertemplate='<b>%{x}</b><br>' +
-                          'Market Cap: $%{y:,.0f}<br>' +
-                          'Sector: %{customdata}<br>' +
-                          '<extra></extra>',
-            customdata=top_10['Sector']
-        ))
-        
-        fig.update_layout(
-            title='Top 10 Stocks by Market Capitalization',
-            xaxis_title='Stock Symbol',
-            yaxis_title='Market Cap ($)',
-            showlegend=False,
-            yaxis_tickformat='$,.0f'
-        )
-        
-        return fig
-    
-    def create_sector_pie_chart(self) -> go.Figure:
-        """Create pie chart showing sector distribution."""
-        if self.daily_data is None:
-            return go.Figure()
-        
-        sector_counts = self.daily_data['Sector'].value_counts()
-        
-        fig = go.Figure(data=[
-            go.Pie(
-                labels=sector_counts.index,
-                values=sector_counts.values,
-                hole=0.3,
-                textinfo='label+percent',
-                textposition='auto',
-                marker_colors=self.colors['sectors'][:len(sector_counts)]
-            )
-        ])
-        
-        fig.update_layout(
-            title='Distribution of Stocks by Sector',
-            showlegend=True,
-            legend=dict(
-                orientation="v",
-                yanchor="middle",
-                y=0.5,
-                xanchor="left",
-                x=1.01
-            )
-        )
-        
-        return fig
-    
-    def create_correlation_heatmap(self) -> go.Figure:
-        """Create correlation heatmap for numerical columns."""
-        if self.daily_data is None:
-            return go.Figure()
-        
-        # Select numerical columns
-        numerical_cols = ['Last Sale', 'Net Change', '% Change', 'Market Cap', 'Volume']
-        available_cols = [col for col in numerical_cols if col in self.daily_data.columns]
-        
-        if len(available_cols) < 2:
-            return go.Figure()
-        
-        corr_matrix = self.daily_data[available_cols].corr()
-        
-        fig = go.Figure(data=go.Heatmap(
-            z=corr_matrix.values,
-            x=corr_matrix.columns,
-            y=corr_matrix.columns,
-            colorscale='RdBu',
-            zmid=0,
-            text=np.round(corr_matrix.values, 2),
-            texttemplate='%{text}',
-            textfont={"size": 10},
-            hovertemplate='%{x} vs %{y}<br>Correlation: %{z:.3f}<extra></extra>'
-        ))
-        
-        fig.update_layout(
-            title='Correlation Matrix of Financial Metrics',
-            width=600,
-            height=500
-        )
-        
-        return fig
-    
-    def create_performance_volume_scatter(self) -> go.Figure:
-        """Create scatter plot of % Change vs Volume."""
-        if self.daily_data is None:
-            return go.Figure()
-        
-        fig = go.Figure()
-        
-        # Create color map for industries (top 10 most common)
-        top_industries = self.daily_data['Industry'].value_counts().head(10).index
-        color_map = {industry: self.colors['sectors'][i % len(self.colors['sectors'])] 
-                     for i, industry in enumerate(top_industries)}
-        
-        for industry in top_industries:
-            industry_data = self.daily_data[self.daily_data['Industry'] == industry]
-            
-            fig.add_trace(go.Scatter(
-                x=industry_data['Volume'],
-                y=industry_data['% Change'],
-                mode='markers',
-                name=industry,
-                marker=dict(
-                    size=np.sqrt(industry_data['Market Cap']) / 1e5,  # Size by market cap
-                    color=color_map[industry],
-                    opacity=0.7,
-                    line=dict(width=1, color='white')
-                ),
-                hovertemplate='<b>%{customdata[0]}</b><br>' +
-                              'Volume: %{x:,.0f}<br>' +
-                              'Change: %{y:.2f}%<br>' +
-                              'Market Cap: $%{customdata[1]:,.0f}<br>' +
-                              'Industry: %{customdata[2]}<br>' +
-                              '<extra></extra>',
-                customdata=np.column_stack((
-                    industry_data['Symbol'],
-                    industry_data['Market Cap'],
-                    industry_data['Industry']
-                ))
-            ))
-        
-        # Add remaining industries as "Other"
-        other_data = self.daily_data[~self.daily_data['Industry'].isin(top_industries)]
-        if len(other_data) > 0:
-            fig.add_trace(go.Scatter(
-                x=other_data['Volume'],
-                y=other_data['% Change'],
-                mode='markers',
-                name='Other Industries',
-                marker=dict(
-                    size=np.sqrt(other_data['Market Cap']) / 1e5,
-                    color='lightgray',
-                    opacity=0.5,
-                    line=dict(width=1, color='white')
-                ),
-                hovertemplate='<b>%{customdata[0]}</b><br>' +
-                              'Volume: %{x:,.0f}<br>' +
-                              'Change: %{y:.2f}%<br>' +
-                              'Market Cap: $%{customdata[1]:,.0f}<br>' +
-                              'Industry: %{customdata[2]}<br>' +
-                              '<extra></extra>',
-                customdata=np.column_stack((
-                    other_data['Symbol'],
-                    other_data['Market Cap'],
-                    other_data['Industry']
-                ))
-            ))
-        
-        fig.update_layout(
-            title='Performance vs Volume Analysis (Bubble size = Market Cap)',
-            xaxis_title='Trading Volume',
-            yaxis_title='% Change',
-            xaxis_type='log',
-            hovermode='closest',
-            legend=dict(
-                yanchor="top",
-                y=0.99,
-                xanchor="left",
-                x=1.01
-            )
-        )
-        
-        return fig
-    
-    def create_candlestick_chart(self) -> go.Figure:
-        """Create candlestick chart for historical data."""
-        if self.historical_data is None:
-            return go.Figure()
-        
-        # Ensure index is datetime
-        data = self.historical_data.copy()
-        if not pd.api.types.is_datetime64_any_dtype(data.index):
-            if 'Datetime' in data.columns:
-                data['Datetime'] = pd.to_datetime(data['Datetime'])
-                data.set_index('Datetime', inplace=True)
-            elif 'Date' in data.columns:
-                data['Date'] = pd.to_datetime(data['Date'])
-                data.set_index('Date', inplace=True)
-        
-        fig = go.Figure(data=[
-            go.Candlestick(
-                x=data.index,
-                open=data['Open'],
-                high=data['High'],
-                low=data['Low'],
-                close=data['Close'],
-                increasing_line_color=self.colors['bullish'],
-                decreasing_line_color=self.colors['bearish'],
-                name='Price',
-                hoverinfo='x+y+name'
-            )
-        ])
-        
-        fig.update_layout(
-            title='Candlestick Chart',
-            xaxis_title='Time Period',
-            yaxis_title='Price ($)',
-            xaxis_rangeslider_visible=False,
-            hovermode='x unified',
-            xaxis=dict(
-                type='date',
-                showticklabels=False,  # Hide date labels from axis
-                showgrid=True,
-                hoverformat='%m-%d-%y'  # Show MM-DD-YY format on hover
-            )
-        )
-        
-        return fig
-    
-    def create_price_trends_chart(self) -> go.Figure:
-        """Create price trends chart showing Close and Adj Close."""
-        if self.historical_data is None:
-            return go.Figure()
-        
-        # Ensure index is datetime
-        data = self.historical_data.copy()
-        if not pd.api.types.is_datetime64_any_dtype(data.index):
-            if 'Datetime' in data.columns:
-                data['Datetime'] = pd.to_datetime(data['Datetime'])
-                data.set_index('Datetime', inplace=True)
-            elif 'Date' in data.columns:
-                data['Date'] = pd.to_datetime(data['Date'])
-                data.set_index('Date', inplace=True)
-        
-        fig = go.Figure()
-        
+        # Price
         fig.add_trace(go.Scatter(
-            x=data.index,
-            y=data['Close'],
+            x=self.data['Datetime'],
+            y=self.data['Close'],
             mode='lines',
             name='Close Price',
             line=dict(color=self.colors['bullish'], width=2),
@@ -282,236 +122,216 @@ class Visualizations:
                           '<extra></extra>'
         ))
         
-        if 'Adj Close' in data.columns:
-            fig.add_trace(go.Scatter(
-                x=data.index,
-                y=data['Adj Close'],
-                mode='lines',
-                name='Adjusted Close',
-                line=dict(color=self.colors['bearish'], width=2, dash='dash'),
-                hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
-                              'Adj Close: $%{y:.2f}<br>' +
-                              '<extra></extra>'
-            ))
+        # SMA
+        sma = self.calculate_sma(window=20)
+        fig.add_trace(go.Scatter(
+            x=self.data['Datetime'],
+            y=sma,
+            mode='lines',
+            name='SMA (20)',
+            line=dict(color=self.colors['neutral'], width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'SMA (20): $%{y:.2f}<br>' +
+                          '<extra></extra>'
+        ))
+        
+        # EMA
+        ema = self.calculate_ema(window=20)
+        fig.add_trace(go.Scatter(
+            x=self.data['Datetime'],
+            y=ema,
+            mode='lines',
+            name='EMA (20)',
+            line=dict(color=self.colors['bearish'], width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'EMA (20): $%{y:.2f}<br>' +
+                          '<extra></extra>'
+        ))
         
         fig.update_layout(
-            title='Price Trends Over Time',
+            title='Moving Averages Analysis',
             xaxis_title='Time Period',
             yaxis_title='Price ($)',
             hovermode='x unified',
             showlegend=True,
             xaxis=dict(
                 type='date',
-                showticklabels=False,  # Hide date labels from axis
+                showticklabels=False,  # Consistent with visualizations.py
                 showgrid=True,
-                hoverformat='%m-%d-%y'  # Show MM-DD-YY format on hover
+                hoverformat='%m-%d-%y'
             )
         )
         
         return fig
     
-    def create_volume_chart(self) -> go.Figure:
-        """Create volume analysis chart."""
-        if self.historical_data is None:
-            return go.Figure()
+    def create_rsi_chart(self) -> go.Figure:
+        """Create RSI chart with overbought/oversold levels."""
+        fig = go.Figure()
         
-        # Ensure index is datetime
-        data = self.historical_data.copy()
-        if not pd.api.types.is_datetime64_any_dtype(data.index):
-            if 'Datetime' in data.columns:
-                data['Datetime'] = pd.to_datetime(data['Datetime'])
-                data.set_index('Datetime', inplace=True)
-            elif 'Date' in data.columns:
-                data['Date'] = pd.to_datetime(data['Date'])
-                data.set_index('Date', inplace=True)
+        # RSI
+        rsi = self.calculate_rsi()
+        fig.add_trace(go.Scatter(
+            x=self.data['Datetime'],
+            y=rsi,
+            mode='lines',
+            name='RSI (14)',
+            line=dict(color=self.colors['bullish'], width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'RSI: %{y:.2f}<br>' +
+                          '<extra></extra>'
+        ))
         
-        # Calculate volume moving average
-        vol_ma = data['Volume'].rolling(window=20, min_periods=1).mean()
+        # Overbought/oversold lines
+        fig.add_hline(y=70, line_dash="dash", line_color=self.colors['bearish'], annotation_text="Overbought")
+        fig.add_hline(y=30, line_dash="dash", line_color=self.colors['bullish'], annotation_text="Oversold")
         
+        fig.update_layout(
+            title='Relative Strength Index (RSI)',
+            xaxis_title='Time Period',
+            yaxis_title='RSI',
+            hovermode='x unified',
+            showlegend=True,
+            xaxis=dict(
+                type='date',
+                showticklabels=False,
+                showgrid=True,
+                hoverformat='%m-%d-%y'
+            ),
+            yaxis=dict(range=[0, 100])
+        )
+        
+        return fig
+    
+    def create_macd_chart(self) -> go.Figure:
+        """Create MACD chart with signal line and histogram."""
         fig = make_subplots(
             rows=2, cols=1,
             shared_xaxes=True,
-            vertical_spacing=0.05,
-            row_heights=[0.7, 0.3],
-            subplot_titles=['Price', 'Volume']
+            vertical_spacing=0.1,
+            row_heights=[0.6, 0.4],
+            subplot_titles=['MACD', 'Histogram']
         )
         
-        # Price chart
+        # MACD and Signal Line
+        macd, signal, histogram = self.calculate_macd()
+        
         fig.add_trace(go.Scatter(
-            x=data.index,
-            y=data['Close'],
+            x=self.data['Datetime'],
+            y=macd,
             mode='lines',
-            name='Close Price',
+            name='MACD',
             line=dict(color=self.colors['bullish'], width=2),
             hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
-                          'Close: $%{y:.2f}<br>' +
+                          'MACD: %{y:.2f}<br>' +
                           '<extra></extra>'
         ), row=1, col=1)
         
-        # Volume bars
-        colors = []
-        for i in range(len(data)):
-            if i == 0:
-                colors.append(self.colors['neutral'])
-            else:
-                if data['Close'].iloc[i] > data['Close'].iloc[i-1]:
-                    colors.append(self.colors['bullish'])
-                else:
-                    colors.append(self.colors['bearish'])
-        
-        fig.add_trace(go.Bar(
-            x=data.index,
-            y=data['Volume'],
-            name='Volume',
-            marker_color=colors,
-            opacity=0.7,
-            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
-                          'Volume: %{y:,.0f}<br>' +
-                          '<extra></extra>'
-        ), row=2, col=1)
-        
-        # Volume moving average
         fig.add_trace(go.Scatter(
-            x=data.index,
-            y=vol_ma,
+            x=self.data['Datetime'],
+            y=signal,
             mode='lines',
-            name='Volume MA(20)',
-            line=dict(color='orange', width=2),
+            name='Signal Line',
+            line=dict(color=self.colors['signal'], width=2),
             hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
-                          'Volume MA(20): %{y:,.0f}<br>' +
+                          'Signal: %{y:.2f}<br>' +
+                          '<extra></extra>'
+        ), row=1, col=1)
+        
+        # Histogram
+        fig.add_trace(go.Bar(
+            x=self.data['Datetime'],
+            y=histogram,
+            name='Histogram',
+            marker_color=[self.colors['bullish'] if val > 0 else self.colors['bearish'] for val in histogram],
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Histogram: %{y:.2f}<br>' +
                           '<extra></extra>'
         ), row=2, col=1)
         
         fig.update_layout(
-            title='Price and Volume Analysis',
+            title='MACD Analysis',
             hovermode='x unified',
             showlegend=True,
             xaxis2=dict(
                 type='date',
-                showticklabels=False,  # Hide date labels from axis
+                showticklabels=False,
                 showgrid=True,
-                hoverformat='%m-%d-%y'  # Show MM-DD-YY format on hover
+                hoverformat='%m-%d-%y'
             )
         )
         
-        fig.update_yaxes(title_text='Price ($)', row=1, col=1)
-        fig.update_yaxes(title_text='Volume', row=2, col=1)
+        fig.update_yaxes(title_text='MACD', row=1, col=1)
+        fig.update_yaxes(title_text='Histogram', row=2, col=1)
         fig.update_xaxes(title_text='Time Period', row=2, col=1)
         
         return fig
     
-    def create_sector_performance_chart(self) -> go.Figure:
-        """Create sector performance comparison chart."""
-        if self.daily_data is None:
-            return go.Figure()
-        
-        # Calculate sector performance metrics
-        sector_stats = self.daily_data.groupby('Sector').agg({
-            '% Change': ['mean', 'std'],
-            'Volume': 'mean',
-            'Market Cap': 'mean'
-        }).round(2)
-        
-        sector_stats.columns = ['Avg_Change', 'Volatility', 'Avg_Volume', 'Avg_Market_Cap']
-        sector_stats = sector_stats.reset_index()
-        
+    def create_bollinger_bands_chart(self) -> go.Figure:
+        """Create Bollinger Bands chart with price."""
         fig = go.Figure()
         
+        # Price
         fig.add_trace(go.Scatter(
-            x=sector_stats['Volatility'],
-            y=sector_stats['Avg_Change'],
-            mode='markers+text',
-            text=sector_stats['Sector'],
-            textposition='top center',
-            marker=dict(
-                size=np.sqrt(sector_stats['Avg_Market_Cap']) / 1e6,
-                color=sector_stats['Avg_Change'],
-                colorscale='RdYlGn',
-                colorbar=dict(title="Avg % Change"),
-                line=dict(width=2, color='white'),
-                opacity=0.8
-            ),
-            hovertemplate='<b>%{text}</b><br>' +
-                          'Avg Change: %{y:.2f}%<br>' +
-                          'Volatility: %{x:.2f}%<br>' +
-                          'Avg Market Cap: $%{customdata:,.0f}<br>' +
-                          '<extra></extra>',
-            customdata=sector_stats['Avg_Market_Cap']
+            x=self.data['Datetime'],
+            y=self.data['Close'],
+            mode='lines',
+            name='Close Price',
+            line=dict(color=self.colors['bullish'], width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Close: $%{y:.2f}<br>' +
+                          '<extra></extra>'
         ))
         
-        # Add quadrant lines
-        fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
-        fig.add_vline(x=sector_stats['Volatility'].median(), line_dash="dash", line_color="gray", opacity=0.5)
+        # Bollinger Bands
+        sma, upper, lower = self.calculate_bollinger_bands()
         
-        fig.update_layout(
-            title='Sector Performance vs Volatility (Bubble size = Avg Market Cap)',
-            xaxis_title='Volatility (Std Dev of % Change)',
-            yaxis_title='Average % Change',
-            hovermode='closest'
-        )
-        
-        return fig
-    
-    def create_market_overview_dashboard(self) -> go.Figure:
-        """Create a comprehensive market overview dashboard."""
-        if self.daily_data is None:
-            return go.Figure()
-        
-        fig = make_subplots(
-            rows=2, cols=2,
-            subplot_titles=['Market Cap Distribution', 'Sector Performance', 
-                            'Volume vs Change', 'Country Distribution'],
-            specs=[[{"type": "pie"}, {"type": "bar"}],
-                   [{"type": "scatter"}, {"type": "bar"}]]
-        )
-        
-        # Market Cap Distribution (Pie)
-        market_cap_bins = pd.cut(self.daily_data['Market Cap'], 
-                                 bins=[0, 1e9, 10e9, 50e9, float('inf')],
-                                 labels=['Small (<$1B)', 'Mid ($1B-$10B)', 
-                                         'Large ($10B-$50B)', 'Mega (>$50B)'])
-        market_cap_dist = market_cap_bins.value_counts()
-        
-        fig.add_trace(go.Pie(
-            labels=market_cap_dist.index,
-            values=market_cap_dist.values,
-            name="Market Cap"
-        ), row=1, col=1)
-        
-        # Sector Performance (Bar)
-        sector_perf = self.daily_data.groupby('Sector')['% Change'].mean().sort_values(ascending=True)
-        
-        fig.add_trace(go.Bar(
-            y=sector_perf.index,
-            x=sector_perf.values,
-            orientation='h',
-            name="Sector Performance",
-            marker_color=['green' if x > 0 else 'red' for x in sector_perf.values]
-        ), row=1, col=2)
-        
-        # Volume vs Change (Scatter)
         fig.add_trace(go.Scatter(
-            x=self.daily_data['Volume'],
-            y=self.daily_data['% Change'],
-            mode='markers',
-            name="Volume vs Change",
-            marker_color=self.daily_data['% Change'],
-            marker_colorscale='RdYlGn'
-        ), row=2, col=1)
+            x=self.data['Datetime'],
+            y=upper,
+            mode='lines',
+            name='Upper Band',
+            line=dict(color=self.colors['neutral'], width=1),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Upper Band: $%{y:.2f}<br>' +
+                          '<extra></extra>'
+        ))
         
-        # Country Distribution (Bar)
-        country_dist = self.daily_data['Country'].value_counts().head(10)
+        fig.add_trace(go.Scatter(
+            x=self.data['Datetime'],
+            y=lower,
+            mode='lines',
+            name='Lower Band',
+            line=dict(color=self.colors['neutral'], width=1),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'Lower Band: $%{y:.2f}<br>' +
+                          '<extra></extra>',
+            fill='tonexty',
+            fillcolor='rgba(120, 144, 156, 0.1)'
+        ))
         
-        fig.add_trace(go.Bar(
-            x=country_dist.index,
-            y=country_dist.values,
-            name="Country Distribution"
-        ), row=2, col=2)
+        fig.add_trace(go.Scatter(
+            x=self.data['Datetime'],
+            y=sma,
+            mode='lines',
+            name='SMA (20)',
+            line=dict(color=self.colors['signal'], width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                          'SMA (20): $%{y:.2f}<br>' +
+                          '<extra></extra>'
+        ))
         
         fig.update_layout(
-            title_text="Market Overview Dashboard",
-            showlegend=False,
-            height=800
+            title='Bollinger Bands Analysis',
+            xaxis_title='Time Period',
+            yaxis_title='Price ($)',
+            hovermode='x unified',
+            showlegend=True,
+            xaxis=dict(
+                type='date',
+                showticklabels=False,
+                showgrid=True,
+                hoverformat='%m-%d-%y'
+            )
         )
         
         return fig
