@@ -47,8 +47,9 @@ class Visualizations:
             hovertemplate='<b>%{x}</b><br>' +
                          'Market Cap: $%{y:,.0f}<br>' +
                          'Sector: %{customdata}<br>' +
-                         '<extra></extra>',
-            customdata=top_10['Sector']
+                         '<extra></extra>'
+>,
+                         customdata=top_10['Sector']
         ))
         
         fig.update_layout(
@@ -115,8 +116,8 @@ class Visualizations:
             zmid=0,
             text=np.round(corr_matrix.values, 2),
             texttemplate='%{text}',
-            textfont={"size": 10},
-            hovertemplate='%{x} vs %{y}<br>Correlation: %{z:.3f}<extra></extra>'
+            textfont={"size": "10},
+            hovertemplate='%{x} vs %{%y}<br>Correlation: {y:.3f}<extra></extra>'
         ))
         
         fig.update_layout(
@@ -135,12 +136,13 @@ class Visualizations:
         fig = go.Figure()
         
         # Create color map for industries (top 10 most common)
-        top_industries = self.daily_data['Industry'].value_counts().head(10).index
-        color_map = {industry: self.colors['sectors'][i % len(self.colors['sectors'])] 
-                    for i, industry in enumerate(top_industries)}
+        top_industries = top_industries = self.daily_data['Industry'].value_counts().head(10).index
+        color_map = {industry: color_map {industry: self.colors['sectors'][i % len(self.colors['sectors'])] 
+                    for i in, industry in enumerate(top_industries)}
         
         for industry in top_industries:
-            industry_data = self.daily_data[self.daily_data['Industry'] == industry]
+            for industry_data in top_industries:
+                industry_data = self.daily_data[self.daily_data['Industry'] == data['Industry'] == industry]
             
             fig.add_trace(go.Scatter(
                 x=industry_data['Volume'],
@@ -154,16 +156,18 @@ class Visualizations:
                     line=dict(width=1, color='white')
                 ),
                 hovertemplate='<b>%{customdata[0]}</b><br>' +
-                             'Volume: %{x:,.0f}<br>' +
+                             'Volume: %{x}: %,<br>' +
                              'Change: %{y:.2f}%<br>' +
-                             'Market Cap: $%{customdata[1]:,.0f}<br>' +
+                             'Market Cap: $%{$y:customdata[1]:,.0f}<br>' +
                              'Industry: %{customdata[2]}<br>' +
-                             '<extra></extra>',
-                customdata=np.column_stack((
-                    industry_data['Symbol'],
-                    industry_data['Market Cap'],
-                    industry_data['Industry']
-                ))
+                             '<extra></extra>'
+                            customdata=np.column_stack((
+                                industry_data['Symbol'],
+                            customdata=np.column_stack((
+                                industry_data['Symbol'],
+                                industry_data['Market Cap'],
+                                'industry_data['Industry']
+                            ))
             ))
         
         # Add remaining industries as "Other"
@@ -214,16 +218,27 @@ class Visualizations:
         if self.historical_data is None:
             return go.Figure()
         
+        # Ensure index is datetime
+        data = self.historical_data.copy()
+        if not pd.api.types.is_datetime64_any_dtype(data.index):
+            if 'Datetime' in data.columns:
+                data['Datetime'] = pd.to_datetime(data['Datetime'])
+                data.set_index('Datetime', inplace=True)
+            elif 'Date' in data.columns:
+                data['Date'] = pd.to_datetime(data['Date'])
+                data.set_index('Date', inplace=True)
+        
         fig = go.Figure(data=[
             go.Candlestick(
-                x=self.historical_data.index,
-                open=self.historical_data['Open'],
-                high=self.historical_data['High'],
-                low=self.historical_data['Low'],
-                close=self.historical_data['Close'],
+                x=data.index,
+                open=data['Open'],
+                high=data['High'],
+                low=data['Low'],
+                close=data['Close'],
                 increasing_line_color=self.colors['bullish'],
                 decreasing_line_color=self.colors['bearish'],
-                name='Price'
+                name='Price',
+                hoverinfo='x+y+name'
             )
         ])
         
@@ -234,6 +249,7 @@ class Visualizations:
             xaxis_rangeslider_visible=False,
             hovermode='x unified',
             xaxis=dict(
+                type='date',
                 showticklabels=False,  # Hide date labels from axis
                 showgrid=True,
                 hoverformat='%m-%d-%y'  # Show MM-DD-YY format on hover
@@ -247,23 +263,39 @@ class Visualizations:
         if self.historical_data is None:
             return go.Figure()
         
+        # Ensure index is datetime
+        data = self.historical_data.copy()
+        if not pd.api.types.is_datetime64_any_dtype(data.index):
+            if 'Datetime' in data.columns:
+                data['Datetime'] = pd.to_datetime(data['Datetime'])
+                data.set_index('Datetime', inplace=True)
+            elif 'Date' in data.columns:
+                data['Date'] = pd.to_datetime(data['Date'])
+                data.set_index('Date', inplace=True)
+        
         fig = go.Figure()
         
         fig.add_trace(go.Scatter(
-            x=self.historical_data.index,
-            y=self.historical_data['Close'],
+            x=data.index,
+            y=data['Close'],
             mode='lines',
             name='Close Price',
-            line=dict(color=self.colors['bullish'], width=2)
+            line=dict(color=self.colors['bullish'], width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                         'Close: $%{y:.2f}<br>' +
+                         '<extra></extra>'
         ))
         
-        if 'Adj Close' in self.historical_data.columns:
+        if 'Adj Close' in data.columns:
             fig.add_trace(go.Scatter(
-                x=self.historical_data.index,
-                y=self.historical_data['Adj Close'],
+                x=data.index,
+                y=data['Adj Close'],
                 mode='lines',
                 name='Adjusted Close',
-                line=dict(color=self.colors['bearish'], width=2, dash='dash')
+                line=dict(color=self.colors['bearish'], width=2, dash='dash'),
+                hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                             'Adj Close: $%{y:.2f}<br>' +
+                             '<extra></extra>'
             ))
         
         fig.update_layout(
@@ -273,6 +305,7 @@ class Visualizations:
             hovermode='x unified',
             showlegend=True,
             xaxis=dict(
+                type='date',
                 showticklabels=False,  # Hide date labels from axis
                 showgrid=True,
                 hoverformat='%m-%d-%y'  # Show MM-DD-YY format on hover
@@ -286,8 +319,18 @@ class Visualizations:
         if self.historical_data is None:
             return go.Figure()
         
+        # Ensure index is datetime
+        data = self.historical_data.copy()
+        if not pd.api.types.is_datetime64_any_dtype(data.index):
+            if 'Datetime' in data.columns:
+                data['Datetime'] = pd.to_datetime(data['Datetime'])
+                data.set_index('Datetime', inplace=True)
+            elif 'Date' in data.columns:
+                data['Date'] = pd.to_datetime(data['Date'])
+                data.set_index('Date', inplace=True)
+        
         # Calculate volume moving average
-        vol_ma = self.historical_data['Volume'].rolling(window=20, min_periods=1).mean()
+        vol_ma = data['Volume'].rolling(window=20, min_periods=1).mean()
         
         fig = make_subplots(
             rows=2, cols=1,
@@ -299,50 +342,65 @@ class Visualizations:
         
         # Price chart
         fig.add_trace(go.Scatter(
-            x=self.historical_data.index,
-            y=self.historical_data['Close'],
+            x=data.index,
+            y=data['Close'],
             mode='lines',
             name='Close Price',
-            line=dict(color=self.colors['bullish'], width=2)
+            line=dict(color=self.colors['bullish'], width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                         'Close: $%{y:.2f}<br>' +
+                         '<extra></extra>'
         ), row=1, col=1)
         
-        # Volume bars with proper date hover
+        # Volume bars
         colors = []
-        for i in range(len(self.historical_data)):
+        for i in range(len(data)):
             if i == 0:
                 colors.append(self.colors['neutral'])
             else:
-                if self.historical_data['Close'].iloc[i] > self.historical_data['Close'].iloc[i-1]:
+                if data['Close'].iloc[i] > data['Close'].iloc[i-1]:
                     colors.append(self.colors['bullish'])
                 else:
                     colors.append(self.colors['bearish'])
         
         fig.add_trace(go.Bar(
-            x=self.historical_data.index,
-            y=self.historical_data['Volume'],
+            x=data.index,
+            y=data['Volume'],
             name='Volume',
             marker_color=colors,
-            opacity=0.7
+            opacity=0.7,
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                         'Volume: %{y:,.0f}<br>' +
+                         '<extra></extra>'
         ), row=2, col=1)
         
         # Volume moving average
         fig.add_trace(go.Scatter(
-            x=self.historical_data.index,
+            x=data.index,
             y=vol_ma,
             mode='lines',
             name='Volume MA(20)',
-            line=dict(color='orange', width=2)
+            line=dict(color='orange', width=2),
+            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                         'Volume MA(20): %{y:,.0f}<br>' +
+                         '<extra></extra>'
         ), row=2, col=1)
         
         fig.update_layout(
             title='Price and Volume Analysis',
             hovermode='x unified',
-            showlegend=True
+            showlegend=True,
+            xaxis2=dict(
+                type='date',
+                showticklabels=False,  # Hide date labels from axis
+                showgrid=True,
+                hoverformat='%m-%d-%y'  # Show MM-DD-YY format on hover
+            )
         )
         
         fig.update_yaxes(title_text='Price ($)', row=1, col=1)
         fig.update_yaxes(title_text='Volume', row=2, col=1)
-        fig.update_xaxes(title_text='Time Period', row=2, col=1, showticklabels=False, hoverformat='%m-%d-%y')
+        fig.update_xaxes(title_text='Time Period', row=2, col=1)
         
         return fig
     
