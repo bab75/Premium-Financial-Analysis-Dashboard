@@ -234,12 +234,7 @@ class Visualizations:
                 increasing_line_color=self.colors['bullish'],
                 decreasing_line_color=self.colors['bearish'],
                 name='Price',
-                hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
-                             'Open: $%{open:.2f}<br>' +
-                             'High: $%{high:.2f}<br>' +
-                             'Low: $%{low:.2f}<br>' +
-                             'Close: $%{close:.2f}<br>' +
-                             '<extra></extra>'
+                hoverinfo='x+open+high+low+close'
             )
         ])
         
@@ -252,8 +247,9 @@ class Visualizations:
             xaxis=dict(
                 type='date',
                 tickformat='%m-%d-%y',
-                hoverformat='%m-%d-%y',
-                showgrid=True
+                xhoverformat='%m-%d-%y',
+                showgrid=True,
+                showticklabels=False  # Maintain original behavior
             )
         )
         
@@ -308,8 +304,9 @@ class Visualizations:
             xaxis=dict(
                 type='date',
                 tickformat='%m-%d-%y',
-                hoverformat='%m-%d-%y',
-                showgrid=True
+                xhoverformat='%m-%d-%y',
+                showgrid=True,
+                showticklabels=False  # Maintain original behavior
             )
         )
         
@@ -353,7 +350,7 @@ class Visualizations:
                          '<extra></extra>'
         ), row=1, col=1)
         
-        # Volume bars with proper date hover
+        # Volume bars
         colors = []
         for i in range(len(data)):
             if i == 0:
@@ -394,8 +391,9 @@ class Visualizations:
             xaxis2=dict(
                 type='date',
                 tickformat='%m-%d-%y',
-                hoverformat='%m-%d-%y',
-                showgrid=True
+                xhoverformat='%m-%d-%y',
+                showgrid=True,
+                showticklabels=False  # Maintain original behavior
             )
         )
         
