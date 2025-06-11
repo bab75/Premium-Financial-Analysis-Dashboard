@@ -13,27 +13,44 @@ class TechnicalIndicators:
     
     def _prepare_data(self) -> pd.DataFrame:
         """Prepare data for technical analysis."""
-        # Ensure we have the required columns
+        # Ensure required columns
         required_cols = ['Close', 'High', 'Low', 'Open', 'Volume']
         for col in required_cols:
             if col not in self.data.columns:
                 raise ValueError(f"Missing required column: {col}")
         
-        # Handle Datetime column or index
+        # Debug: Log input data structure
+        print("Input DataFrame columns:", self.data.columns.tolist())
+        print("Input DataFrame head:\n", self.data.head().to_string())
+        
+        # Handle datetime
         if 'Datetime' in self.data.columns:
-            self.data['Datetime'] = pd.to_datetime(self.data['Datetime'])
+            self.data['Datetime'] = pd.to_datetime(self.data['Datetime'], errors='coerce')
         elif 'Date' in self.data.columns:
-            self.data['Date'] = pd.to_datetime(self.data['Date'])
+            self.data['Date'] = pd.to_datetime(self.data['Date'], errors='coerce')
             self.data = self.data.rename(columns={'Date': 'Datetime'})
         elif pd.api.types.is_datetime64_any_dtype(self.data.index):
             self.data = self.data.reset_index()
-            self.data = self.data.rename(columns={'index': 'Datetime'})
-            self.data['Datetime'] = pd.to_datetime(self.data['Datetime'])
+            if 'index' in self.data.columns:
+                self.data = self.data.rename(columns={'index': 'Datetime'})
+            elif 'Date' in self.data.columns:
+                self.data = self.data.rename(columns={'Date': 'Datetime'})
+            self.data['Datetime'] = pd.to_datetime(self.data['Datetime'], errors='coerce')
         else:
-            raise ValueError("No valid Datetime or Date column found in data")
+            raise ValueError("No valid Datetime or Date column/index found in data")
+        
+        # Check for invalid Datetime values
+        if self.data['Datetime'].isna().any():
+            print("Warning: NaT values found in Datetime column")
+            self.data = self.data.dropna(subset=['Datetime'])
         
         # Sort by Datetime
         self.data = self.data.sort_values('Datetime')
+        
+        # Debug: Log prepared data
+        print("Prepared DataFrame columns:", self.data.columns.tolist())
+        print("Prepared Datetime head:", self.data['Datetime'].head().to_string())
+        
         return self.data
     
     def calculate_sma(self, period: int) -> pd.Series:
@@ -135,9 +152,11 @@ class TechnicalIndicators:
         """Create moving averages chart."""
         fig = go.Figure()
         
+        x_data = self.data['Datetime'] if 'Datetime' in self.data.columns else self.data.index
+        
         # Price line
         fig.add_trace(go.Scatter(
-            x=self.data['Datetime'],
+            x=x_data,
             y=self.data['Close'],
             mode='lines',
             name='Close Price',
@@ -149,7 +168,7 @@ class TechnicalIndicators:
         
         # Moving Averages
         fig.add_trace(go.Scatter(
-            x=self.data['Datetime'],
+            x=x_data,
             y=self.calculate_sma(10),
             mode='lines',
             name='SMA 10',
@@ -160,7 +179,7 @@ class TechnicalIndicators:
         ))
         
         fig.add_trace(go.Scatter(
-            x=self.data['Datetime'],
+            x=x_data,
             y=self.calculate_sma(20),
             mode='lines',
             name='SMA 20',
@@ -171,7 +190,7 @@ class TechnicalIndicators:
         ))
         
         fig.add_trace(go.Scatter(
-            x=self.data['Datetime'],
+            x=x_data,
             y=self.calculate_sma(50),
             mode='lines',
             name='SMA 50',
@@ -189,9 +208,9 @@ class TechnicalIndicators:
             showlegend=True,
             xaxis=dict(
                 type='date',
-                showticklabels=False,  # Hide date labels from axis
+                showticklabels=False,
                 showgrid=True,
-                hoverformat='%m-%d-%y'  # Show MM-DD-YY format on hover
+                hoverformat='%m-%d-%y'
             )
         )
         
@@ -203,9 +222,11 @@ class TechnicalIndicators:
         
         fig = go.Figure()
         
+        x_data = self.data['Datetime'] if 'Datetime' in self.data.columns else self.data.index
+        
         # RSI Line
         fig.add_trace(go.Scatter(
-            x=self.data['Datetime'],
+            x=x_data,
             y=rsi,
             mode='lines',
             name='RSI',
@@ -247,9 +268,11 @@ class TechnicalIndicators:
             row_heights=[0.7, 0.3]
         )
         
+        x_data = self.data['Datetime'] if 'Datetime' in self.data.columns else self.data.index
+        
         # MACD and Signal Lines
         fig.add_trace(go.Scatter(
-            x=self.data['Datetime'],
+            x=x_data,
             y=macd_data['MACD'],
             mode='lines',
             name='MACD',
@@ -260,7 +283,7 @@ class TechnicalIndicators:
         ), row=1, col=1)
         
         fig.add_trace(go.Scatter(
-            x=self.data['Datetime'],
+            x=x_data,
             y=macd_data['Signal'],
             mode='lines',
             name='Signal',
@@ -273,7 +296,7 @@ class TechnicalIndicators:
         # Histogram
         colors = ['green' if val >= 0 else 'red' for val in macd_data['Histogram']]
         fig.add_trace(go.Bar(
-            x=self.data['Datetime'],
+            x=x_data,
             y=macd_data['Histogram'],
             name='Histogram',
             marker_color=colors,
@@ -306,9 +329,11 @@ class TechnicalIndicators:
         
         fig = go.Figure()
         
+        x_data = self.data['Datetime'] if 'Datetime' in self.data.columns else self.data.index
+        
         # Upper Band
         fig.add_trace(go.Scatter(
-            x=self.data['Datetime'],
+            x=x_data,
             y=bb_data['Upper'],
             mode='lines',
             name='Upper Band',
@@ -321,7 +346,7 @@ class TechnicalIndicators:
         
         # Lower Band
         fig.add_trace(go.Scatter(
-            x=self.data['Datetime'],
+            x=x_data,
             y=bb_data['Lower'],
             mode='lines',
             name='Lower Band',
@@ -336,7 +361,7 @@ class TechnicalIndicators:
         
         # Middle Band (SMA)
         fig.add_trace(go.Scatter(
-            x=self.data['Datetime'],
+            x=x_data,
             y=bb_data['Middle'],
             mode='lines',
             name='Middle Band (SMA 20)',
@@ -348,7 +373,7 @@ class TechnicalIndicators:
         
         # Price
         fig.add_trace(go.Scatter(
-            x=self.data['Datetime'],
+            x=x_data,
             y=self.data['Close'],
             mode='lines',
             name='Close Price',
