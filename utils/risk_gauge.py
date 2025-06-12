@@ -293,6 +293,8 @@ class RiskGauge:
         # Convert Date to datetime
         try:
             data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
+            print(f"Converted Date dtype: {data['Date'].dtype}")
+            print(f"Converted Date samples: {data['Date'].head().tolist()}")
         except Exception as e:
             print(f"Error: Failed to convert 'Date' to datetime: {str(e)}")
             return go.Figure()
@@ -343,7 +345,7 @@ class RiskGauge:
                 name="Price",
                 increasing_line_color='#00ff00',
                 decreasing_line_color='#ff0000',
-                hovertemplate='Date: %{x|%m-%d-%y}<br>' +
+                hovertemplate='Date: %{x}<br>' +  # Simplified to test date display
                               'Open: $%{open:.2f}<br>' +
                               'High: $%{high:.2f}<br>' +
                               'Low: $%{low:.2f}<br>' +
@@ -360,7 +362,7 @@ class RiskGauge:
                 y=data['Volume'],
                 name="Volume",
                 marker_color='lightblue',
-                hovertemplate='Date: %{x|%m-%d-%y}<br>' +
+                hovertemplate='Date: %{x}<br>' +  # Simplified to test date display
                               'Volume: %{y:,.0f}<br>' +
                               '<extra></extra>'
             ),
@@ -378,14 +380,12 @@ class RiskGauge:
             xaxis=dict(
                 type='date',
                 tickformat='%m-%d-%y',
-                tickangle=45,
-                hoverformat='%m-%d-%y'
+                tickangle=45
             ),
             xaxis2=dict(
                 type='date',
                 tickformat='%m-%d-%y',
-                tickangle=45,
-                hoverformat='%m-%d-%y'
+                tickangle=45
             )
         )
         
