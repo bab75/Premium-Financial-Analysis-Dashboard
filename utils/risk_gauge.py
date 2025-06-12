@@ -326,6 +326,11 @@ class RiskGauge:
         print(f"Date sample: {data['Date'].head().tolist()}")
         print(f"Open sample: {data['Open'].head().tolist()}")
         
+        # Final validation of trace data
+        if data['Date'].isna().any() or data['Open'].isna().any() or data['High'].isna().any() or data['Low'].isna().any() or data['Close'].isna().any():
+            print("Error: NaN values found in Date, Open, High, Low, or Close")
+            return go.Figure()
+        
         # Create subplots
         fig = make_subplots(
             rows=2, cols=1,
@@ -337,6 +342,7 @@ class RiskGauge:
         
         # Add candlestick
         if len(data['Date']) == len(data['Open']) == len(data['High']) == len(data['Low']) == len(data['Close']):
+            print("Adding Candlestick trace with lengths:", len(data['Date']))
             fig.add_trace(
                 go.Candlestick(
                     x=data['Date'],
@@ -362,6 +368,7 @@ class RiskGauge:
         
         # Add volume bars
         if len(data['Date']) == len(data['Volume']):
+            print("Adding Volume trace with length:", len(data['Volume']))
             fig.add_trace(
                 go.Bar(
                     x=data['Date'],
