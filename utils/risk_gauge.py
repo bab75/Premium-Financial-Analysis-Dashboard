@@ -327,8 +327,13 @@ class RiskGauge:
         print(f"Open sample: {data['Open'].head().tolist()}")
         
         # Final validation of trace data
-        if data['Date'].isna().any() or data['Open'].isna().any() or data['High'].isna().any() or data['Low'].isna().any() or data['Close'].isna().any():
-            print("Error: NaN values found in Date, Open, High, Low, or Close")
+        date_list = data['Date'].tolist()
+        if any(pd.isna(x) for x in date_list):
+            print("Error: NaT found in Date column")
+            return go.Figure()
+        ohlc = [data['Open'].tolist(), data['High'].tolist(), data['Low'].tolist(), data['Close'].tolist()]
+        if any(pd.isna(x).any() for x in ohlc):
+            print("Error: NaN found in Open, High, Low, or Close columns")
             return go.Figure()
         
         # Create subplots
@@ -342,14 +347,16 @@ class RiskGauge:
         
         # Add candlestick
         if len(data['Date']) == len(data['Open']) == len(data['High']) == len(data['Low']) == len(data['Close']):
+            print("Candlestick x sample:", date_list[:5])
+            print("Candlestick open sample:", data['Open'].tolist()[:5])
             print("Adding Candlestick trace with lengths:", len(data['Date']))
             fig.add_trace(
                 go.Candlestick(
-                    x=data['Date'],
-                    open=data['Open'],
-                    high=data['High'],
-                    low=data['Low'],
-                    close=data['Close'],
+                    x=date_list,
+                    open=data['Open'].tolist(),
+                    high=data['High'].tolist(),
+                    low=data['Low'].tolist(),
+                    close=data['Close'].tolist(),
                     name="Price",
                     increasing_line_color='#00ff00',
                     decreasing_line_color='#ff0000',
@@ -368,11 +375,13 @@ class RiskGauge:
         
         # Add volume bars
         if len(data['Date']) == len(data['Volume']):
+            print("Volume x sample:", date_list[:5])
+            print("Volume y sample:", data['Volume'].tolist()[:5])
             print("Adding Volume trace with length:", len(data['Volume']))
             fig.add_trace(
                 go.Bar(
-                    x=data['Date'],
-                    y=data['Volume'],
+                    x=date_list,
+                    y=data['Volume'].tolist(),
                     name="Volume",
                     marker_color='lightblue',
                     hovertemplate='Date: %{x|%m-%d-%y}<br>' +
