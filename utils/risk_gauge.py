@@ -344,6 +344,10 @@ class RiskGauge:
         # Create a copy and preprocess data
         data = df.copy()
         
+        # Log initial row count
+        initial_rows = len(data)
+        print(f"Initial row count: {initial_rows}")
+        
         # Log input date column
         print(f"Input {date_col} dtype: {data[date_col].dtype}")
         print(f"Input {date_col} samples: {data[date_col].head().tolist()}")
@@ -355,22 +359,21 @@ class RiskGauge:
             print(f"Error: Failed to convert {date_col} to datetime: {str(e)}")
             return go.Figure()
         
-        # Drop rows with invalid dates
-        if data[date_col].isna().any():
-            invalid_count = len(data[date_col][data[date_col].isna()])
-            print(f"Warning: Dropping {invalid_count} rows with invalid or NaT values in {date_col}")
-            data = data.dropna(subset=[date_col])
-        
         # Ensure numeric columns
         try:
             for col in required_cols:
                 data[col] = pd.to_numeric(data[col], errors='coerce')
-            data = data.dropna(subset=required_cols)
         except Exception as e:
             print(f"Error: Failed to convert {col} to numeric: {str(e)}")
             return go.Figure()
         
-        if data.empty:
+        # Drop rows with invalid dates or numeric values in one pass
+        data = data.dropna(subset=[date_col] + required_cols)
+        
+        # Log processed row count
+        processed_rows = len(data)
+        print(f"Processed row count: {processed_rows}")
+        if processed_rows == 0:
             print("Error: No valid data after preprocessing")
             return go.Figure()
         
@@ -393,6 +396,9 @@ class RiskGauge:
         )
         
         try:
+            # Log trace data
+            print(f"Candlestick x len: {len(data[date_col])}, open len: {len(data['Open'])}")
+            
             # Add candlestick
             fig.add_trace(
                 go.Candlestick(
@@ -429,6 +435,11 @@ class RiskGauge:
                 row=2,
                 col=1
             )
+            
+            # Check if traces have data
+            if not fig.data or all(len(trace.x) == 0 for trace in fig.data if hasattr(trace, 'x')):
+                print("Error: No data in Plotly traces")
+                return go.Figure()
         except Exception as e:
             print(f"Error adding Plotly traces: {str(e)}")
             return go.Figure()
