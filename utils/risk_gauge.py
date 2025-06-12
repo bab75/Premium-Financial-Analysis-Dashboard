@@ -280,138 +280,59 @@ class RiskGauge:
         """Create professional candlestick chart with technical indicators."""
         
         if data.empty or 'Date' not in data.columns:
-            print("Error: Input DataFrame is empty or missing 'Date' column. Columns:", data.columns.tolist())
             return go.Figure()
         
-        # Log initial row count
-        initial_rows = len(data)
-        print(f"Initial row count: {initial_rows}")
+        fig = go.Figure()
         
-        # Create a copy and preprocess data
-        data = data.copy()
+        # Add candlestick
+        fig.add_trace(go.Candlestick(
+            x=data['Date'],
+            open=data['Open'],
+            high=data['High'],
+            low=data['Low'],
+            close=data['Close'],
+            name="Price",
+            increasing_line_color='#00ff00',
+            decreasing_line_color='#ff0000'
+        ))
         
-        # Convert Date to datetime
-        try:
-            data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
-            print(f"Converted Date dtype: {data['Date'].dtype}")
-            print(f"Converted Date samples: {data['Date'].head().tolist()}")
-        except Exception as e:
-            print(f"Error: Failed to convert 'Date' to datetime: {str(e)}")
-            return go.Figure()
-        
-        # Drop rows with invalid dates
-        data = data.dropna(subset=['Date'])
-        
-        # Ensure numeric columns
-        for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
-            if col in data.columns:
-                try:
-                    data[col] = pd.to_numeric(data[col], errors='coerce')
-                except Exception as e:
-                    print(f"Error: Failed to convert '{col}' to numeric: {str(e)}")
-                    return go.Figure()
-        
-        # Drop rows with invalid numeric values in one pass
-        data = data.dropna(subset=['Open', 'High', 'Low', 'Close', 'Volume'])
-        
-        # Log processed row count
-        processed_rows = len(data)
-        print(f"Processed row count: {processed_rows}")
-        if processed_rows == 0:
-            print("Error: No valid data after preprocessing")
-            return go.Figure()
-        
-        # Log column lengths and samples
-        print(f"Date length: {len(data['Date'])}, Open length: {len(data['Open'])}, Volume length: {len(data['Volume'])}")
-        print(f"Date sample: {data['Date'].head().tolist()}")
-        print(f"Open sample: {data['Open'].head().tolist()}")
-        
-        # Final validation of trace data
-        date_list = data['Date'].tolist()
-        if any(pd.isna(x) for x in date_list):
-            print("Error: NaT found in Date column")
-            return go.Figure()
-        ohlc = [data['Open'].tolist(), data['High'].tolist(), data['Low'].tolist(), data['Close'].tolist()]
-        if any(pd.isna(x).any() for x in ohlc):
-            print("Error: NaN found in Open, High, Low, or Close columns")
-            return go.Figure()
-        
-        # Create subplots
+        # Add volume subplot
         fig = make_subplots(
             rows=2, cols=1,
             shared_xaxes=True,
             vertical_spacing=0.03,
             subplot_titles=('Stock Price', 'Volume'),
-            row_heights=[0.7, 0.3]
+            row_width=[0.7, 0.3]
         )
         
-        # Add candlestick
-        if len(data['Date']) == len(data['Open']) == len(data['High']) == len(data['Low']) == len(data['Close']):
-            print("Candlestick x sample:", date_list[:5])
-            print("Candlestick open sample:", data['Open'].tolist()[:5])
-            print("Adding Candlestick trace with lengths:", len(data['Date']))
-            fig.add_trace(
-                go.Candlestick(
-                    x=date_list,
-                    open=data['Open'].tolist(),
-                    high=data['High'].tolist(),
-                    low=data['Low'].tolist(),
-                    close=data['Close'].tolist(),
-                    name="Price",
-                    increasing_line_color='#00ff00',
-                    decreasing_line_color='#ff0000',
-                    hovertemplate='Date: %{x|%m-%d-%y}<br>' +
-                                  'Open: $%{open:.2f}<br>' +
-                                  'High: $%{high:.2f}<br>' +
-                                  'Low: $%{low:.2f}<br>' +
-                                  'Close: $%{close:.2f}<br>' +
-                                  '<extra></extra>'
-                ),
-                row=1, col=1
-            )
-        else:
-            print(f"Error: Mismatched lengths - Date: {len(data['Date'])}, Open: {len(data['Open'])}, High: {len(data['High'])}, Low: {len(data['Low'])}, Close: {len(data['Close'])}")
-            return go.Figure()
+        fig.add_trace(go.Candlestick(
+            x=data['Date'],
+            open=data['Open'],
+            high=data['High'],
+            low=data['Low'],
+            close=data['Close'],
+            name="Price"
+        ), row=1, col=1)
         
-        # Add volume bars
-        if len(data['Date']) == len(data['Volume']):
-            print("Volume x sample:", date_list[:5])
-            print("Volume y sample:", data['Volume'].tolist()[:5])
-            print("Adding Volume trace with length:", len(data['Volume']))
-            fig.add_trace(
-                go.Bar(
-                    x=date_list,
-                    y=data['Volume'].tolist(),
-                    name="Volume",
-                    marker_color='lightblue',
-                    hovertemplate='Date: %{x|%m-%d-%y}<br>' +
-                                  'Volume: %{y:,.0f}<br>' +
-                                  '<extra></extra>'
-                ),
-                row=2, col=1
-            )
-        else:
-            print(f"Error: Mismatched lengths - Date: {len(data['Date'])}, Volume: {len(data['Volume'])}")
-            return go.Figure()
+        fig.add_trace(go.Bar(
+            x=data['Date'],
+            y=data['Volume'],
+            name="Volume",
+            marker_color='lightblue'
+        ), row=2, col=1)
         
         fig.update_layout(
             title='Professional Candlestick Analysis',
             yaxis_title='Stock Price (USD)',
-            yaxis2_title='Volume',
             xaxis_rangeslider_visible=False,
             height=600,
-            showlegend=False,
-            hovermode='x unified',
-            xaxis=dict(
-                type='date',
-                tickformat='%m-%d-%y',
-                tickangle=45
-            ),
-            xaxis2=dict(
-                type='date',
-                tickformat='%m-%d-%y',
-                tickangle=45
-            )
+            showlegend=False
+        )
+        
+        # Format dates
+        fig.update_xaxes(
+            tickformat='%m-%d-%y',
+            tickangle=45
         )
         
         return fig
