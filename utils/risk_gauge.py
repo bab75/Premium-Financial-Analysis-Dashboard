@@ -2,6 +2,7 @@
 Professional Risk Gauge and Advanced Visualizations Module
 Creates sophisticated gauge meters and high-tech charts for financial analysis
 """
+
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
@@ -279,12 +280,13 @@ class RiskGauge:
         """Create professional candlestick chart with technical indicators."""
         
         if data.empty:
+            print("Warning: Input DataFrame is empty")
             return go.Figure()
         
         # Check for date column ('Date' or 'Datetime')
         date_col = 'Date' if 'Date' in data.columns else 'Datetime' if 'Datetime' in data.columns else None
         if date_col is None:
-            print("Warning: No 'Date' or 'Datetime' column found in data")
+            print("Warning: No 'Date' or 'Datetime' column found in data. Columns:", data.columns.tolist())
             return go.Figure()
         
         # Validate required columns
@@ -294,11 +296,17 @@ class RiskGauge:
             print(f"Warning: Missing required columns: {missing_cols}")
             return go.Figure()
         
-        # Create a copy and convert date column to datetime
+        # Create a copy and preprocess data
         data = data.copy()
+        
+        # Debug: Log input data
+        print(f"Input {date_col} dtype:", data[date_col].dtype)
+        print(f"Input {date_col} head:", data[date_col].head().to_list())
+        
+        # Convert date column to datetime
         data[date_col] = pd.to_datetime(data[date_col], errors='coerce')
         if data[date_col].isna().any():
-            print("Warning: Invalid or NaT values found in date column")
+            print(f"Warning: Invalid or NaT values found in {date_col} column")
             data = data.dropna(subset=[date_col])
         
         # Ensure numeric columns
@@ -309,6 +317,14 @@ class RiskGauge:
         if data.empty:
             print("Warning: No valid data after preprocessing")
             return go.Figure()
+        
+        # Sort by date
+        data = data.sort_values(by=date_col)
+        
+        # Debug: Log processed data
+        print(f"Processed {date_col} dtype:", data[date_col].dtype)
+        print(f"Processed {date_col} head:", data[date_col].head().to_list())
+        print("Processed DataFrame head:\n", data.head().to_string())
         
         # Create subplots
         fig = make_subplots(
@@ -329,7 +345,7 @@ class RiskGauge:
             name="Price",
             increasing_line_color='#00ff00',
             decreasing_line_color='#ff0000',
-            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+            hovertemplate='Date: %{x|%m-%d-%y}<br>' +
                           'Open: $%{open:.2f}<br>' +
                           'High: $%{high:.2f}<br>' +
                           'Low: $%{low:.2f}<br>' +
@@ -343,7 +359,7 @@ class RiskGauge:
             y=data['Volume'],
             name="Volume",
             marker_color='lightblue',
-            hovertemplate='<b>Date:</b> %{x|%m-%d-%y}<br>' +
+            hovertemplate='Date: %{x|%m-%d-%y}<br>' +
                           'Volume: %{y:,.0f}<br>' +
                           '<extra></extra>'
         ), row=2, col=1)
@@ -356,6 +372,13 @@ class RiskGauge:
             height=600,
             showlegend=False,
             hovermode='x unified',
+            xaxis=dict(
+                type='date',
+                tickformat='%m-%d-%y',
+                tickangle=45,
+                showgrid=True,
+                hoverformat='%m-%d-%y'
+            ),
             xaxis2=dict(
                 type='date',
                 tickformat='%m-%d-%y',
