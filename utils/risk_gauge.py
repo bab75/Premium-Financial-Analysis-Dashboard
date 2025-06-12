@@ -311,7 +311,7 @@ class RiskGauge:
                     print(f"Error: Failed to convert '{col}' to numeric: {str(e)}")
                     return go.Figure()
         
-        # Drop rows with invalid numeric values
+        # Drop rows with invalid numeric values in one pass
         data = data.dropna(subset=['Open', 'High', 'Low', 'Close', 'Volume'])
         
         # Log processed row count
@@ -321,9 +321,10 @@ class RiskGauge:
             print("Error: No valid data after preprocessing")
             return go.Figure()
         
-        # Log data types and samples
-        print("Data types:\n", data.dtypes.to_string())
-        print("Data head:\n", data.head().to_string())
+        # Log column lengths and samples
+        print(f"Date length: {len(data['Date'])}, Open length: {len(data['Open'])}, Volume length: {len(data['Volume'])}")
+        print(f"Date sample: {data['Date'].head().tolist()}")
+        print(f"Open sample: {data['Open'].head().tolist()}")
         
         # Create subplots
         fig = make_subplots(
@@ -335,39 +336,47 @@ class RiskGauge:
         )
         
         # Add candlestick
-        fig.add_trace(
-            go.Candlestick(
-                x=data['Date'],
-                open=data['Open'],
-                high=data['High'],
-                low=data['Low'],
-                close=data['Close'],
-                name="Price",
-                increasing_line_color='#00ff00',
-                decreasing_line_color='#ff0000',
-                hovertemplate='Date: %{x}<br>' +  # Simplified to test date display
-                              'Open: $%{open:.2f}<br>' +
-                              'High: $%{high:.2f}<br>' +
-                              'Low: $%{low:.2f}<br>' +
-                              'Close: $%{close:.2f}<br>' +
-                              '<extra></extra>'
-            ),
-            row=1, col=1
-        )
+        if len(data['Date']) == len(data['Open']) == len(data['High']) == len(data['Low']) == len(data['Close']):
+            fig.add_trace(
+                go.Candlestick(
+                    x=data['Date'],
+                    open=data['Open'],
+                    high=data['High'],
+                    low=data['Low'],
+                    close=data['Close'],
+                    name="Price",
+                    increasing_line_color='#00ff00',
+                    decreasing_line_color='#ff0000',
+                    hovertemplate='Date: %{x|%m-%d-%y}<br>' +
+                                  'Open: $%{open:.2f}<br>' +
+                                  'High: $%{high:.2f}<br>' +
+                                  'Low: $%{low:.2f}<br>' +
+                                  'Close: $%{close:.2f}<br>' +
+                                  '<extra></extra>'
+                ),
+                row=1, col=1
+            )
+        else:
+            print(f"Error: Mismatched lengths - Date: {len(data['Date'])}, Open: {len(data['Open'])}, High: {len(data['High'])}, Low: {len(data['Low'])}, Close: {len(data['Close'])}")
+            return go.Figure()
         
         # Add volume bars
-        fig.add_trace(
-            go.Bar(
-                x=data['Date'],
-                y=data['Volume'],
-                name="Volume",
-                marker_color='lightblue',
-                hovertemplate='Date: %{x}<br>' +  # Simplified to test date display
-                              'Volume: %{y:,.0f}<br>' +
-                              '<extra></extra>'
-            ),
-            row=2, col=1
-        )
+        if len(data['Date']) == len(data['Volume']):
+            fig.add_trace(
+                go.Bar(
+                    x=data['Date'],
+                    y=data['Volume'],
+                    name="Volume",
+                    marker_color='lightblue',
+                    hovertemplate='Date: %{x|%m-%d-%y}<br>' +
+                                  'Volume: %{y:,.0f}<br>' +
+                                  '<extra></extra>'
+                ),
+                row=2, col=1
+            )
+        else:
+            print(f"Error: Mismatched lengths - Date: {len(data['Date'])}, Volume: {len(data['Volume'])}")
+            return go.Figure()
         
         fig.update_layout(
             title='Professional Candlestick Analysis',
