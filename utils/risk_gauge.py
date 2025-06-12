@@ -268,112 +268,145 @@ class RiskGauge:
         ))
         
         fig.update_layout(
-            title='Advanced Correlation Heatmap',
-            xaxis_nticks=36,
-            height=500,
+            title='Risk Correlation Matrix',
+            xaxis_nticks=20,
+            height=200,
             font=dict(size=12)
         )
         
         return fig
     
-    def create_advanced_candlestick(self, data: pd.DataFrame) -> go.Figure:
+    def create_advanced_candlestick(self, df: pd.DataFrame) -> go.Figure:
         """Create professional candlestick chart with technical indicators."""
         
-        if data.empty:
-            print("Warning: Input DataFrame is empty")
+        if df.empty:
+            print("Error: Input DataFrame is empty")
             return go.Figure()
         
-        # Check for date column ('Date' or 'Datetime')
-        date_col = 'Date' if 'Date' in data.columns else 'Datetime' if 'Datetime' in data.columns else None
+        # Log input columns
+        print("Input DataFrame columns:", df.columns.tolist())
+        
+        # Check for date column
+        date_col = None
+        for col in ['Date', 'Datetime', 'date', 'datetime']:
+            if col in df.columns:
+                date_col = col
+                break
+        
         if date_col is None:
-            print("Warning: No 'Date' or 'Datetime' column found in data. Columns:", data.columns.tolist())
+            print("Error: No 'Date', 'Datetime', 'date', or 'datetime' column found. Columns:", df.columns.tolist())
             return go.Figure()
         
         # Validate required columns
-        required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
-        missing_cols = [col for col in required_cols if col not in data.columns]
-        if missing_cols:
-            print(f"Warning: Missing required columns: {missing_cols}")
+        required_cols = ['Open', 'High', 'Low']
+        missing_cols = ['Close']
+        for col in required_cols if col not in df.columns:
+            print(f"Error: Missing required column: {missing_cols}")
             return go.Figure()
         
         # Create a copy and preprocess data
-        data = data.copy()
+        data = df.copy()
         
-        # Debug: Log input data
-        print(f"Input {date_col} dtype:", data[date_col].dtype)
-        print(f"Input {date_col} head:", data[date_col].head().to_list())
+        # Log input date column
+        print(f"Input {date_col} dtype: {data[date_col].dtype}")
+        print(f"Input {date_col} samples: {data[date_col].head().tolist()}")
         
         # Convert date column to datetime
-        data[date_col] = pd.to_datetime(data[date_col], errors='coerce')
+        try:
+            data[date_col] = pd.to_datetime(data[date_col], errors='mixed')
+        except Exception as e:
+            print(f"Error: Failed to convert {date_col} to datetime: {str(e)}")
+            return
+ go.Figure()
+        
+        # Drop rows with invalid dates
         if data[date_col].isna().any():
-            print(f"Warning: Invalid or NaT values found in {date_col} column")
+            print(f"Warning: Invalid or NaT values found in {len(data[date_col][data[date_col].isna()])} rows of {date_col}")
             data = data.dropna(subset=[date_col])
         
         # Ensure numeric columns
-        for col in required_cols:
-            data[col] = pd.to_numeric(data[col], errors='coerce')
-        data = data.dropna(subset=required_cols)
+        try:
+            for col in required_cols:
+                data[col] = pd.to_numeric(data[col], errors='coerce')
+            data = data.dropna(subset=required_cols)
+        except Exception as e:
+            print(f"Error: Failed to convert {col} to numeric: {str(e)}")
+            return go.Figure()
         
         if data.empty:
-            print("Warning: No valid data after preprocessing")
-            return go.Figure()
+            print("Error: No valid data after preprocessing")
+            return
+ go.Figure()
         
         # Sort by date
         data = data.sort_values(by=date_col)
         
-        # Debug: Log processed data
-        print(f"Processed {date_col} dtype:", data[date_col].dtype)
-        print(f"Processed {date_col} head:", data[date_col].head().to_list())
+        # Log processed data
+        print(f"Processed {date_col} dtype: {data[date_col].dtype}")
+        print(f"Processed {date_col} samples: {data[date_col].head().tolist()}")
         print("Processed DataFrame head:\n", data.head().to_string())
         
         # Create subplots
         fig = make_subplots(
-            rows=2, cols=1,
+            rows=2,
+            cols=1,
             shared_xaxes=True,
             vertical_spacing=0.03,
-            subplot_titles=('Stock Price', 'Volume'),
+            subplot_titles=('Stock Price', 'Volume')
             row_heights=[0.7, 0.3]
         )
         
-        # Add candlestick
-        fig.add_trace(go.Candlestick(
-            x=data[date_col],
-            open=data['Open'],
-            high=data['High'],
-            low=data['Low'],
-            close=data['Close'],
-            name="Price",
-            increasing_line_color='#00ff00',
-            decreasing_line_color='#ff0000',
-            hovertemplate='Date: %{x|%m-%d-%y}<br>' +
-                          'Open: $%{open:.2f}<br>' +
-                          'High: $%{high:.2f}<br>' +
-                          'Low: $%{low:.2f}<br>' +
-                          'Close: $%{close:.2f}<br>' +
-                          '<extra></extra>'
-        ), row=1, col=1)
-        
-        # Add volume
-        fig.add_trace(go.Bar(
-            x=data[date_col],
-            y=data['Volume'],
-            name="Volume",
-            marker_color='lightblue',
-            hovertemplate='Date: %{x|%m-%d-%y}<br>' +
-                          'Volume: %{y:,.0f}<br>' +
-                          '<extra></extra>'
-        ), row=2, col=1)
+        try:
+            # Add candlestick
+            fig.add_trace(
+                go.ScatterCandlestick(
+                    x=data[date_col],
+                    open=data['Open'],
+                    high=data['High'],
+                    low=data['Low'],
+                    close=data['Close'],
+                    name="Price",
+                    increasing_line_color='#00cc00',
+                    decreasing_line_color='#cc0000',
+                    hovertemplate='Date: %{x|%m-%d-%y}<br>' +
+                                  'Open: $%{open:.2f}<br>' +
+                                  'High: $%{high:.2f}<br>' +
+                                  'Low: $%{low:.2f}<br>' +
+                                  'Close: $%{close:.2f}<br>' +
+                                  '<extra></extra>'
+                ),
+                row=1,
+                col=1
+            )
+            
+            # Add volume bars
+            fig.add_trace(
+                go.Bar(
+                    x=data[date_col],
+                    y=data['Volume'],
+                    name="Volume",
+                    marker_color='lightgreen',
+                    hovertemplate='Date: %{x|%m-%d-%y}<br>' +
+                                  'Volume: %{y:,.0f}<br>'
+                ),
+                row=2,
+                col=1
+            )
+        except Exception as e:
+            print(f"Error adding Plotly traces: {str(e)}")
+            return
+ go.Figure()
         
         fig.update_layout(
-            title='Professional Candlestick Analysis',
-            yaxis_title='Stock Price (USD)',
+            title='Risk Candlestick Analysis'
+            yaxis_title='Stock Price ($)',
             yaxis2_title='Volume',
             xaxis_rangeslider_visible=False,
-            height=600,
+            height=350,
             showlegend=False,
             hovermode='x unified',
             xaxis=dict(
-                type='date',
+                type='datetime',
                 tickformat='%m-%d-%y',
                 tickangle=45,
                 showgrid=True,
@@ -389,3 +422,5 @@ class RiskGauge:
         )
         
         return fig
+</xai_archive>
+
