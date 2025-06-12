@@ -280,59 +280,113 @@ class RiskGauge:
         """Create professional candlestick chart with technical indicators."""
         
         if data.empty or 'Date' not in data.columns:
+            print("Error: Input DataFrame is empty or missing 'Date' column. Columns:", data.columns.tolist())
             return go.Figure()
         
-        fig = go.Figure()
+        # Log initial row count
+        initial_rows = len(data)
+        print(f"Initial row count: {initial_rows}")
         
-        # Add candlestick
-        fig.add_trace(go.Candlestick(
-            x=data['Date'],
-            open=data['Open'],
-            high=data['High'],
-            low=data['Low'],
-            close=data['Close'],
-            name="Price",
-            increasing_line_color='#00ff00',
-            decreasing_line_color='#ff0000'
-        ))
+        # Create a copy and preprocess data
+        data = data.copy()
         
-        # Add volume subplot
+        # Convert Date to datetime
+        try:
+            data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
+        except Exception as e:
+            print(f"Error: Failed to convert 'Date' to datetime: {str(e)}")
+            return go.Figure()
+        
+        # Drop rows with invalid dates
+        data = data.dropna(subset=['Date'])
+        
+        # Ensure numeric columns
+        for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+            if col in data.columns:
+                try:
+                    data[col] = pd.to_numeric(data[col], errors='coerce')
+                except Exception as e:
+                    print(f"Error: Failed to convert '{col}' to numeric: {str(e)}")
+                    return go.Figure()
+        
+        # Drop rows with invalid numeric values
+        data = data.dropna(subset=['Open', 'High', 'Low', 'Close', 'Volume'])
+        
+        # Log processed row count
+        processed_rows = len(data)
+        print(f"Processed row count: {processed_rows}")
+        if processed_rows == 0:
+            print("Error: No valid data after preprocessing")
+            return go.Figure()
+        
+        # Log data types and samples
+        print("Data types:\n", data.dtypes.to_string())
+        print("Data head:\n", data.head().to_string())
+        
+        # Create subplots
         fig = make_subplots(
             rows=2, cols=1,
             shared_xaxes=True,
             vertical_spacing=0.03,
             subplot_titles=('Stock Price', 'Volume'),
-            row_width=[0.7, 0.3]
+            row_heights=[0.7, 0.3]
         )
         
-        fig.add_trace(go.Candlestick(
-            x=data['Date'],
-            open=data['Open'],
-            high=data['High'],
-            low=data['Low'],
-            close=data['Close'],
-            name="Price"
-        ), row=1, col=1)
+        # Add candlestick
+        fig.add_trace(
+            go.Candlestick(
+                x=data['Date'],
+                open=data['Open'],
+                high=data['High'],
+                low=data['Low'],
+                close=data['Close'],
+                name="Price",
+                increasing_line_color='#00ff00',
+                decreasing_line_color='#ff0000',
+                hovertemplate='Date: %{x|%m-%d-%y}<br>' +
+                              'Open: $%{open:.2f}<br>' +
+                              'High: $%{high:.2f}<br>' +
+                              'Low: $%{low:.2f}<br>' +
+                              'Close: $%{close:.2f}<br>' +
+                              '<extra></extra>'
+            ),
+            row=1, col=1
+        )
         
-        fig.add_trace(go.Bar(
-            x=data['Date'],
-            y=data['Volume'],
-            name="Volume",
-            marker_color='lightblue'
-        ), row=2, col=1)
+        # Add volume bars
+        fig.add_trace(
+            go.Bar(
+                x=data['Date'],
+                y=data['Volume'],
+                name="Volume",
+                marker_color='lightblue',
+                hovertemplate='Date: %{x|%m-%d-%y}<br>' +
+                              'Volume: %{y:,.0f}<br>' +
+                              '<extra></extra>'
+            ),
+            row=2, col=1
+        )
         
         fig.update_layout(
             title='Professional Candlestick Analysis',
             yaxis_title='Stock Price (USD)',
+            yaxis2_title='Volume',
             xaxis_rangeslider_visible=False,
             height=600,
-            showlegend=False
-        )
-        
-        # Format dates
-        fig.update_xaxes(
-            tickformat='%m-%d-%y',
-            tickangle=45
+            showlegend=False,
+            hovermode='x unified',
+            xaxis=dict(
+                type='date',
+                tickformat='%m-%d-%y',
+                tickangle=45,
+                hoverformat='%m-%d-%y'
+            ),
+            xaxis2=dict(
+                type='date',
+                tickformat='%m-%d-%y',
+                tickangle=45,
+                hoverformat='%m-%d-%y'
+            )
         )
         
         return fig
