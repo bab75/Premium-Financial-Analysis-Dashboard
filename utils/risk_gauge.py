@@ -277,55 +277,30 @@ class RiskGauge:
         return fig
     
     def create_advanced_candlestick(self, data: pd.DataFrame) -> go.Figure:
-        """Create professional candlestick chart with technical indicators."""
+        """Create professional candlestick chart with technical indicators using Plotly Express."""
         
         if data.empty or 'Date' not in data.columns or 'Open' not in data.columns or 'High' not in data.columns or 'Low' not in data.columns or 'Close' not in data.columns or 'Volume' not in data.columns:
             print("Error: Input DataFrame is missing required columns. Available columns:", data.columns.tolist())
             return go.Figure()
         
-        # Create subplots
-        fig = make_subplots(
-            rows=2, cols=1,
-            shared_xaxes=True,
-            vertical_spacing=0.03,
-            subplot_titles=('Stock Price', 'Volume'),
-            row_heights=[0.7, 0.3]
-        )
+        # Create candlestick figure using Plotly Express
+        fig = px.candlestick(data, x='Date', open='Open', high='High', low='Low', close='Close',
+                             hover_data={'Date': '|%m-%d-%y', 'Open': ':$.2f', 'High': ':$.2f', 'Low': ':$.2f', 'Close': ':$.2f'},
+                             color_discrete_sequence=['#00ff00', '#ff0000'])
         
-        # Add candlestick
-        fig.add_trace(
-            go.Candlestick(
-                x=data['Date'],
-                open=data['Open'],
-                high=data['High'],
-                low=data['Low'],
-                close=data['Close'],
-                name="Price",
-                increasing_line_color='#00ff00',
-                decreasing_line_color='#ff0000',
-                hovertemplate='Date: %{x|%m-%d-%y}<br>' +
-                              'Open: $%{open:.2f}<br>' +
-                              'High: $%{high:.2f}<br>' +
-                              'Low: $%{low:.2f}<br>' +
-                              'Close: $%{close:.2f}<br>' +
-                              '<extra></extra>'
-            ),
-            row=1, col=1
-        )
+        # Add volume as a subplot
+        fig_volume = px.bar(data, x='Date', y='Volume', hover_data={'Date': '|%m-%d-%y', 'Volume': ':,.0f'},
+                            color_discrete_sequence=['lightblue'])
         
-        # Add volume bars
-        fig.add_trace(
-            go.Bar(
-                x=data['Date'],
-                y=data['Volume'],
-                name="Volume",
-                marker_color='lightblue',
-                hovertemplate='Date: %{x|%m-%d-%y}<br>' +
-                              'Volume: %{y:,.0f}<br>' +
-                              '<extra></extra>'
-            ),
-            row=2, col=1
-        )
+        # Combine into subplots
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03,
+                           subplot_titles=('Stock Price', 'Volume'), row_heights=[0.7, 0.3])
+        
+        # Add candlestick trace
+        for trace in fig_volume.data:
+            fig.add_trace(trace, row=2, col=1)
+        for trace in fig.data:
+            fig.add_trace(trace, row=1, col=1)
         
         fig.update_layout(
             title='Professional Candlestick Analysis',
@@ -338,9 +313,6 @@ class RiskGauge:
         )
         
         # Format dates on x-axes
-        fig.update_xaxes(
-            tickformat='%m-%d-%y',
-            tickangle=45
-        )
+        fig.update_xaxes(tickformat='%m-%d-%y', tickangle=45)
         
         return fig
