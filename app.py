@@ -438,52 +438,53 @@ def phase1_comparative_analysis_section():
                     avg_change = filtered_df['Price_Change_Pct'].mean() if not filtered_df.empty else 0
                     st.metric("Avg Change", f"{avg_change:.2f}%", delta=f"{avg_change:.2f}%")
                 
-               # Find price columns dynamically
-                price_current_col = None
-                price_previous_col = None
-                
-                for col in filtered_df.columns:
-                    col_lower = col.lower()
-                    if ('current' in col_lower and any(term in col_lower for term in ['last sale', 'price', 'close', 'last', 'current', 'closing'])):
-                        price_current_col = col
-                    elif ('previous' in col_lower and any(term in col_lower for term in ['last sale', 'price', 'close', 'last', 'current', 'closing'])):
-                        price_previous_col = col
-                
-                display_columns = ['Symbol', 'Price_Change_Pct', 'Profit_Loss']
-                
-                # Add name column if available
-                for col in filtered_df.columns:
-                    if 'Name_current' in col or 'Company_current' in col:
-                        display_columns.insert(1, col)
-                        break
-                
-                # Add price columns if available
-                if price_current_col:
-                    display_columns.append(price_current_col)
-                if price_previous_col:
-                    display_columns.append(price_previous_col)
-                
-                # Add volume and market cap if available
-                for col in filtered_df.columns:
-                    if 'Volume_current' in col:
-                        display_columns.append(col)
-                    elif 'Market Cap_current' in col:
-                        display_columns.append(col)
-                
-                # Filter to only available columns
-                available_columns = [col for col in display_columns if col in filtered_df.columns]
-                
-                # Round numeric columns
-                display_data = filtered_df[available_columns].copy()
-                for col in display_data.columns:
-                    if display_data[col].dtype in ['float64', 'int64']:
-                        display_data[col] = display_data[col].round(2)
-                
-                st.dataframe(
-                    display_data,
-                    use_container_width=True,
-                    height=400
-
+                # Display filtered results
+                if not filtered_df.empty:
+                    # Find price columns dynamically
+                    price_current_col = None
+                    price_previous_col = None
+                    
+                    for col in filtered_df.columns:
+                        col_lower = col.lower()
+                        if ('current' in col_lower and any(term in col_lower for term in ['last sale', 'price', 'close', 'last', 'current', 'closing'])):
+                            price_current_col = col
+                        elif ('previous' in col_lower and any(term in col_lower for term in ['last sale', 'price', 'close', 'last', 'current', 'closing'])):
+                            price_previous_col = col
+                    
+                    display_columns = ['Symbol', 'Price_Change_Pct', 'Profit_Loss']
+                    
+                    # Add name column if available
+                    for col in filtered_df.columns:
+                        if 'Name_current' in col or 'Company_current' in col:
+                            display_columns.insert(1, col)
+                            break
+                    
+                    # Add price columns if available
+                    if price_current_col:
+                        display_columns.append(price_current_col)
+                    if price_previous_col:
+                        display_columns.append(price_previous_col)
+                    
+                    # Add volume and market cap if available
+                    for col in filtered_df.columns:
+                        if 'Volume_current' in col:
+                            display_columns.append(col)
+                        elif 'Market Cap_current' in col:
+                            display_columns.append(col)
+                    
+                    # Filter to only available columns
+                    available_columns = [col for col in display_columns if col in filtered_df.columns]
+                    
+                    # Round numeric columns
+                    display_data = filtered_df[available_columns].copy()
+                    for col in display_data.columns:
+                        if display_data[col].dtype in ['float64', 'int64']:
+                            display_data[col] = display_data[col].round(2)
+                    
+                    st.dataframe(
+                        display_data,
+                        use_container_width=True,
+                        height=400
                     )
                     
                     # Download filtered data
