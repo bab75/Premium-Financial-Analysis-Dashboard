@@ -252,6 +252,12 @@ def phase1_comparative_analysis_section():
         if missing_columns:
             st.warning(f"Missing required columns: {', '.join(missing_columns)}. Analysis may be incomplete.")
         
+        # Check for invalid Last Sale values
+        if 'Last Sale_prev' in merged_data.columns and merged_data['Last Sale_prev'].isnull().any():
+            st.warning("Some Last Sale_prev values are missing or invalid. Check input data.")
+        if 'Last Sale_curr' in merged_data.columns and merged_data['Last Sale_curr'].isnull().any():
+            st.warning("Some Last Sale_curr values are missing or invalid. Check input data.")
+        
         # Performance Summary
         st.subheader("📈 Overall Performance Summary")
         summary = comp_analysis.get_performance_summary()
@@ -264,19 +270,23 @@ def phase1_comparative_analysis_section():
             
             with col2:
                 avg_change = summary.get('avg_change', 0)
-                st.metric("Average Price Change", f"{avg_change:.2f}%", delta=f"{avg_change:.2f}%")
+                if pd.isna(avg_change):
+                    st.metric("Average Price Change", "N/A", delta="N/A")
+                    st.warning("Average Price Change is unavailable due to invalid data.")
+                else:
+                    st.metric("Average Price Change", f"{avg_change:.2f}%", delta=f"{avg_change:.2f}%")
             
             with col3:
                 gainers = summary.get('gainers', 0)
-                st.metric("Gainers", gainers, delta="positive" if gainers > 0 else None)
+                st.metric("Gainers", gainers, delta="normal" if gainers > 0 else "off")
             
             with col4:
                 losers = summary.get('losers', 0)
-                st.metric("Losers", losers, delta="negative" if losers > 0 else None)
+                st.metric("Losers", losers, delta="inverse" if losers > 0 else "off")
             
             with col5:
                 total_profit_loss = summary.get('total_profit_loss_value', 0)
-                delta_color = "positive" if total_profit_loss > 0 else "negative" if total_profit_loss < 0 else None
+                delta_color = "normal" if total_profit_loss > 0 else "inverse" if total_profit_loss < 0 else "off"
                 st.metric("Total Profit/Loss", f"${total_profit_loss:,.2f}", delta=f"${total_profit_loss:,.2f}", delta_color=delta_color)
         
         # Top/Bottom Performers
@@ -443,16 +453,19 @@ def phase1_comparative_analysis_section():
                     st.metric("Filtered Stocks", len(filtered_df))
                 with metrics_col2:
                     gainers = len(filtered_df[filtered_df['% Change_calc'] > 0]) if not filtered_df.empty else 0
-                    st.metric("Gainers", gainers, delta="positive" if gainers > 0 else None)
+                    st.metric("Gainers", gainers, delta="normal" if gainers > 0 else "off")
                 with metrics_col3:
                     losers = len(filtered_df[filtered_df['% Change_calc'] < 0]) if not filtered_df.empty else 0
-                    st.metric("Losers", losers, delta="negative" if losers > 0 else None)
+                    st.metric("Losers", losers, delta="inverse" if losers > 0 else "off")
                 with metrics_col4:
                     avg_change = filtered_df['% Change_calc'].mean() if not filtered_df.empty else 0
-                    st.metric("Avg Change", f"{avg_change:.2f}%", delta=f"{avg_change:.2f}%")
+                    if pd.isna(avg_change):
+                        st.metric("Avg Change", "N/A", delta="N/A")
+                    else:
+                        st.metric("Avg Change", f"{avg_change:.2f}%", delta=f"{avg_change:.2f}%")
                 with metrics_col5:
                     total_profit_loss = filtered_df['Profit_Loss_Value'].sum() if 'Profit_Loss_Value' in filtered_df.columns and not filtered_df.empty else 0
-                    delta_color = "positive" if total_profit_loss > 0 else "negative" if total_profit_loss < 0 else None
+                    delta_color = "normal" if total_profit_loss > 0 else "inverse" if total_profit_loss < 0 else "off"
                     st.metric("Total Profit/Loss", f"${total_profit_loss:,.2f}", delta=f"${total_profit_loss:,.2f}", delta_color=delta_color)
                 
                 # Display filtered results
@@ -528,7 +541,7 @@ def phase1_comparative_analysis_section():
             for col in display_industry_data.columns:
                 if 'Profit_Loss_Value' in col:
                     display_industry_data[col] = display_industry_data[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else '$0.00')
-                elif display_sector_data[col].dtype in ['float64', 'int64']:
+                elif display_industry_data[col].dtype in ['float64', 'int64']:
                     display_industry_data[col] = display_industry_data[col].round(2)
             st.dataframe(display_industry_data, use_container_width=True)
         else:
