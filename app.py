@@ -1455,7 +1455,7 @@ def main():
 # Clear Analysis Button
 if st.button("🗑️ Clear All Analysis", help="Reset all analysis data and uploaded files"):
     try:
-        # Define keys to clear (specific to your app)
+        # Define keys to clear
         keys_to_clear = [
             'current_data',
             'previous_data',
@@ -1466,12 +1466,12 @@ if st.button("🗑️ Clear All Analysis", help="Reset all analysis data and upl
             'yfinance_data'
         ]
         
-        # Clear only the specified session state keys
+        # Clear specified session state keys
         for key in keys_to_clear:
             if key in st.session_state:
                 del st.session_state[key]
         
-        # Reinitialize keys to None to ensure consistent state
+        # Reinitialize keys to None
         st.session_state['current_data'] = None
         st.session_state['previous_data'] = None
         st.session_state['historical_data'] = None
@@ -1480,11 +1480,19 @@ if st.button("🗑️ Clear All Analysis", help="Reset all analysis data and upl
         st.session_state['comparative_analysis'] = None
         st.session_state['yfinance_data'] = None
         
-        # Optional: Increment upload_key if used elsewhere in the app
+        # Increment upload_key to reset file_uploader widgets
         st.session_state['upload_key'] = st.session_state.get('upload_key', 0) + 1
         
+        # Explicitly clear file_uploader states
+        current_uploader_key = f"current_data_file_{st.session_state.upload_key - 1}"
+        previous_uploader_key = f"previous_data_file_{st.session_state.upload_key - 1}"
+        if current_uploader_key in st.session_state:
+            del st.session_state[current_uploader_key]
+        if previous_uploader_key in st.session_state:
+            del st.session_state[previous_uploader_key]
+        
         st.success("✅ All analysis data and uploaded files cleared! Ready for new uploads.")
-        st.rerun()  # Refresh UI to reflect cleared state
+        st.rerun()  # Refresh UI
     except Exception as e:
         st.error(f"Error clearing analysis: {str(e)}")
        
