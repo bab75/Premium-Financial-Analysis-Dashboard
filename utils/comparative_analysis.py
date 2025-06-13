@@ -47,9 +47,11 @@ class ComparativeAnalysis:
             current_data_clean = current_data_clean[current_data_clean['Symbol'].notna() & (current_data_clean['Symbol'] != '')]
             previous_data_clean = previous_data_clean[previous_data_clean['Symbol'].notna() & (previous_data_clean['Symbol'] != '')]
             
-            # Debug: Show symbol counts
+            # Debug: Show symbol counts and samples
             st.write(f"Current data symbols: {len(current_data_clean['Symbol'].unique())}")
             st.write(f"Previous data symbols: {len(previous_data_clean['Symbol'].unique())}")
+            st.write(f"Sample current symbols: {current_data_clean['Symbol'].head().tolist()}")
+            st.write(f"Sample previous symbols: {previous_data_clean['Symbol'].head().tolist()}")
             
             # Merge datasets on Symbol
             merged = pd.merge(
@@ -62,8 +64,6 @@ class ComparativeAnalysis:
             
             if merged.empty:
                 st.warning(f"No matching symbols found. Current: {len(current_data_clean)}, Previous: {len(previous_data_clean)}")
-                st.write(f"Sample current symbols: {current_data_clean['Symbol'].head().tolist()}")
-                st.write(f"Sample previous symbols: {previous_data_clean['Symbol'].head().tolist()}")
                 return
             
             # Calculate price changes
@@ -71,13 +71,26 @@ class ComparativeAnalysis:
             price_col_previous = self._find_price_column(merged, '_previous')
             
             if price_col_current and price_col_previous:
+                # Debug: Show raw price column data before cleaning
+                st.write(f"Selected price columns: {price_col_current}, {price_col_previous}")
+                st.write(f"Sample raw {price_col_current} values: {merged[price_col_current].head().tolist()}")
+                st.write(f"Sample raw {price_col_previous} values: {merged[price_col_previous].head().tolist()}")
+                
                 # Convert price columns to numeric
                 merged[price_col_current] = self._clean_numeric_column(merged[price_col_current])
                 merged[price_col_previous] = self._clean_numeric_column(merged[price_col_previous])
                 
-                # Debug: Check for non-numeric values
-                st.write(f"Sample {price_col_current} values: {merged[price_col_current].head().tolist()}")
-                st.write(f"Sample {price_col_previous} values: {merged[price_col_previous].head().tolist()}")
+                # Debug: Show cleaned price values
+                st.write(f"Sample cleaned {price_col_current} values: {merged[price_col_current].head().tolist()}")
+                st.write(f"Sample cleaned {price_col_previous} values: {merged[price_col_previous].head().tolist()}")
+                
+                # Check for valid numeric data
+                valid_prices = merged[merged[price_col_current].notna() & merged[price_col_previous].notna()]
+                st.write(f"Number of stocks with valid prices: {len(valid_prices)}")
+                
+                if len(valid_prices) == 0:
+                    st.warning("No valid numeric price data found after cleaning.")
+                    return
                 
                 # Calculate profit/loss and percentage change
                 merged['Profit_Loss'] = merged[price_col_current] - merged[price_col_previous]
@@ -149,11 +162,16 @@ class ComparativeAnalysis:
         try:
             if series.dtype in ['object', 'string']:
                 cleaned = series.astype(str).str.strip()
-                cleaned = cleaned.str.replace(r'[$,€£¥₹]', '', regex=True)
-                cleaned = cleaned.str.replace(r'[^\d.-]', '', regex=True)
+                # Handle common non-numeric cases
+                cleaned = cleaned.replace(['', 'N/A', 'NA', 'n/a', '-', 'None'], np.nan)
+                cleaned = cleaned.str.replace(r'[$,€£¥₹%]', '', regex=True)  # Remove currency and % symbols
+                cleaned = cleaned.str.replace(r'[^\d.-]', '', regex=True)    # Keep only digits, decimal, and negative
                 cleaned = pd.to_numeric(cleaned, errors='coerce')
             else:
                 cleaned = pd.to_numeric(series, errors='coerce')
+            # Debug: Report non-numeric values
+            if cleaned.isna().sum() > 0:
+                st.warning(f"Found {cleaned.isna().sum()} non-numeric or missing values in column")
             return cleaned
         except Exception as e:
             st.error(f"Error cleaning numeric column: {str(e)}")
@@ -171,7 +189,9 @@ class ComparativeAnalysis:
                     gainers = int((price_changes > 0).sum())
                     losers = int((price_changes < 0).sum())
                     unchanged = int((price_changes == 0).sum())
-                    avg_change = float(price_changes.mean())
+                    avg_change = float(price_changes.mean()) if not price_changes.empty else 0.0
+                    max_gain = float(price_changes.max()) if not price_changes.empty else 0.0
+                    min_loss = float(price_changes.min()) if not price_changes.empty else 0.0
                     
                     summary = {
                         'total_stocks': len(self.merged_data),
@@ -179,12 +199,12 @@ class ComparativeAnalysis:
                         'losers': losers,
                         'unchanged': unchanged,
                         'avg_change': avg_change,
-                        'max_gain': float(price_changes.max()),
-                        'min_loss': float(price_changes.min())
+                        'max_gain': max_gain,
+                        'min_loss': min_loss
                     }
-                    
                     return summary
             
+            st.warning("No valid Price_Change_Pct data available for summary")
             return {
                 'total_stocks': len(self.merged_data),
                 'gainers': 0,
