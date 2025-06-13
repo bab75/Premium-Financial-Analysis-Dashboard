@@ -7,6 +7,7 @@ from plotly.subplots import make_subplots
 import warnings
 import yfinance as yf
 from datetime import datetime, timedelta
+import re
 
 # Import utility modules
 from utils.data_processor import DataProcessor
@@ -46,10 +47,21 @@ initialize_session_state()
 
 def clear_session_state():
     """Clear all session state variables to reset the app."""
-    for key in list(st.session_state.keys()):
+    # Collect keys to avoid modifying dictionary during iteration
+    keys_to_clear = [key for key in st.session_state.keys() if key not in ['navigation']]
+    for key in keys_to_clear:
         st.session_state[key] = None
     st.success("✅ All data cleared! You can now upload new files.")
     st.rerun()
+
+def clean_numeric_column(series):
+    """Clean a column to ensure numeric values, removing common non-numeric characters."""
+    if series.dtype == 'object':
+        # Remove $, commas, %, and other non-numeric characters
+        series = series.str.replace(r'[\$,%]', '', regex=True).str.strip()
+        # Replace empty strings or non-numeric values with NaN
+        series = pd.to_numeric(series, errors='coerce')
+    return series
 
 def data_upload_section():
     """Enhanced Data Upload & Processing section."""
@@ -76,16 +88,21 @@ def data_upload_section():
                     # Validate required columns
                     required_columns = ['Symbol', 'Last Sale', 'Net Change', '% Change', 'Sector', 'Industry']
                     if all(col in current_data.columns for col in required_columns):
-                        # Ensure numeric columns
+                        # Clean and validate numeric columns
                         numeric_cols = ['Last Sale', 'Net Change', '% Change']
                         for col in numeric_cols:
                             try:
-                                current_data[col] = pd.to_numeric(current_data[col], errors='coerce')
+                                current_data[col] = clean_numeric_column(current_data[col])
                                 if current_data[col].isna().all():
-                                    st.error(f"Column '{col}' contains no valid numeric data.")
+                                    st.error(f"Column '{col}' contains no valid numeric data after cleaning.")
+                                    st.write(f"Sample values in '{col}':")
+                                    st.write(current_data[col].head().tolist())
+                                    st.info("Please ensure the column contains numeric values (e.g., 100.50) without symbols like $ or text.")
                                     return
+                                if current_data[col].isna().sum() > 0:
+                                    st.warning(f"Column '{col}' has {current_data[col].isna().sum()} missing or invalid values, which may affect analysis.")
                             except Exception as e:
-                                st.error(f"Error converting '{col}' to numeric: {str(e)}")
+                                st.error(f"Error processing column '{col}': {str(e)}")
                                 return
                         
                         st.session_state.current_data = current_data
@@ -137,16 +154,21 @@ def data_upload_section():
                     # Validate required columns
                     required_columns = ['Symbol', 'Last Sale', 'Net Change', '% Change', 'Sector', 'Industry']
                     if all(col in previous_data.columns for col in required_columns):
-                        # Ensure numeric columns
+                        # Clean and validate numeric columns
                         numeric_cols = ['Last Sale', 'Net Change', '% Change']
                         for col in numeric_cols:
                             try:
-                                previous_data[col] = pd.to_numeric(previous_data[col], errors='coerce')
+                                previous_data[col] = clean_numeric_column(previous_data[col])
                                 if previous_data[col].isna().all():
-                                    st.error(f"Column '{col}' contains no valid numeric data in previous data.")
+                                    st.error(f"Column '{col}' contains no valid numeric data after cleaning in previous data.")
+                                    st.write(f"Sample values in '{col}':")
+                                    st.write(previous_data[col].head().tolist())
+                                    st.info("Please ensure the column contains numeric values (e.g., 100.50) without symbols like $ or text.")
                                     return
+                                if previous_data[col].isna().sum() > 0:
+                                    st.warning(f"Column '{col}' has {previous_data[col].isna().sum()} missing or invalid values, which may affect analysis.")
                             except Exception as e:
-                                st.error(f"Error converting '{col}' to numeric in previous data: {str(e)}")
+                                st.error(f"Error processing column '{col}' in previous data: {str(e)}")
                                 return
                         
                         st.session_state.previous_data = previous_data
@@ -292,7 +314,8 @@ def phase1_comparative_analysis_section():
             if merged_data['% Change_calc'].isna().all():
                 st.error("No valid price change data calculated. Possible issues with 'Last Sale' values.")
                 st.write("Sample of merged data for debugging:")
-                st.dataframe(merged_data.head(), use_container_width=True)
+                st.dataframe(merged_data[['Symbol', 'Last Sale_curr', 'Last Sale_prev', '% Change_calc']].head(), use_container_width=True)
+                st.info("Ensure 'Last Sale' columns contain valid numeric values in both files.")
                 return
         
         # Performance Summary
