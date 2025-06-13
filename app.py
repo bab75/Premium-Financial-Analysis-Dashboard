@@ -1459,6 +1459,7 @@ def main():
                 del st.session_state[key]
             # Reinitialize immediately
             initialize_session_state()
+            st.session_state.upload_key += 1  # Increment for file uploaders
             st.success("✅ All analysis data and uploaded files cleared! Ready for new uploads.")
             st.rerun()  # Refresh UI
         except Exception as e:
