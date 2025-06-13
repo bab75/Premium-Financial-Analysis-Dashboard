@@ -10,8 +10,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 from typing import Dict, List, Optional, Tuple
-import yfinance as yf
-from datetime import datetime, timedelta
+import re
 
 class ComparativeAnalysis:
     """Perform comprehensive comparative analysis between current and previous stock data."""
@@ -23,14 +22,14 @@ class ComparativeAnalysis:
         self._prepare_comparative_data()
     
     def _prepare_comparative_data(self):
-        """Prepare merged dataset for comparative analysis with flexible column matching."""
+        """Prepare simplified dataset for comparative analysis with specific output columns."""
         try:
             # Find symbol column with flexible naming
             symbol_col_current = self._find_symbol_column(self.current_data)
             symbol_col_previous = self._find_symbol_column(self.previous_data)
             
             if not symbol_col_current or not symbol_col_previous:
-                st.error(f"Symbol column not found. Please ensure your data has a column named Symbol, Ticker, or similar")
+                st.error("Symbol column not found. Please ensure your data has a column named Symbol, Ticker, or similar.")
                 return
             
             # Standardize symbol column names
@@ -50,105 +49,122 @@ class ComparativeAnalysis:
             current_data_clean = current_data_clean[current_data_clean['Symbol'].notna() & (current_data_clean['Symbol'] != '')]
             previous_data_clean = previous_data_clean[previous_data_clean['Symbol'].notna() & (previous_data_clean['Symbol'] != '')]
             
-            # Merge datasets on Symbol
-            merged = pd.merge(
-                current_data_clean, 
-                previous_data_clean, 
-                on='Symbol', 
-                how='inner',
-                suffixes=('_current', '_previous')
-            )
+            # Initialize output dataframe with Symbol column
+            output_data = pd.DataFrame({'Symbol': current_data_clean['Symbol'].intersection(previous_data_clean['Symbol'])})
             
-            if merged.empty:
+            if output_data.empty:
                 st.warning(f"No matching symbols found. Current: {len(current_data_clean)}, Previous: {len(previous_data_clean)}")
                 return
             
-            # Check if we already have change data in the current dataset
-            change_pct_col = None
-            change_col = None
+            # Merge with current and previous data to get required columns
+            output_data = output_data.merge(current_data_clean, on='Symbol', how='inner')
+            output_data = output_data.merge(previous_data_clean, on='Symbol', how='inner', suffixes=('_curr', '_prev'))
             
-            # Look for existing change columns in current data
-            for col in merged.columns:
-                if 'Change_current' in col and '%' in col:
-                    change_pct_col = col
-                elif 'Net Change_current' in col:
-                    change_col = col
+            # Find price columns
+            price_col_curr = self._find_price_column(current_data_clean)
+            price_col_prev = self._find_price_column(previous_data_clean)
             
-            if change_pct_col:
-                # Use existing percentage change data
-                st.info(f"Using existing change data from column: {change_pct_col}")
-                merged['Price_Change_Pct'] = self._clean_numeric_column(merged[change_pct_col])
-                
-                # Add profit/loss classification
-                merged['Profit_Loss'] = merged['Price_Change_Pct'].apply(
-                    lambda x: 'Profit' if x > 0 else ('Loss' if x < 0 else 'Neutral') if pd.notna(x) else 'Unknown'
-                )
-                
-                if change_col:
-                    merged['Price_Change'] = self._clean_numeric_column(merged[change_col])
+            if not price_col_curr or not price_col_prev:
+                st.error("Price columns not found in one or both datasets.")
+                return
+            
+            # Rename price columns to Last Sale
+            output_data['Last Sale_curr'] = self._clean_numeric_column(output_data[f'{price_col_curr}_curr'])
+            output_data['Last Sale_prev'] = self._clean_numeric_column(output_data[f'{price_col_prev}_prev'])
+            
+            # Find net change columns
+            net_change_col_curr = self._find_net_change_column(current_data_clean)
+            net_change_col_prev = self._find_net_change_column(previous_data_clean)
+            
+            if net_change_col_curr:
+                output_data['Net Change_curr'] = self._clean_numeric_column(output_data[f'{net_change_col_curr}_curr'])
             else:
-                # Fallback to calculating from price columns
-                price_col_current = self._find_price_column(merged, '_current')
-                price_col_previous = self._find_price_column(merged, '_previous')
-                
-                if price_col_current and price_col_previous:
-                    # Convert price columns to numeric, handling different formats
-                    merged[price_col_current] = self._clean_numeric_column(merged[price_col_current])
-                    merged[price_col_previous] = self._clean_numeric_column(merged[price_col_previous])
-                    
-                    # Calculate price changes
-                    merged['Price_Change'] = merged[price_col_current] - merged[price_col_previous]
-                    merged['Price_Change_Pct'] = ((merged[price_col_current] - merged[price_col_previous]) / 
-                                                merged[price_col_previous].replace(0, np.nan)) * 100
-                    
-                    # Add profit/loss classification
-                    merged['Profit_Loss'] = merged['Price_Change_Pct'].apply(
-                        lambda x: 'Profit' if x > 0 else ('Loss' if x < 0 else 'Neutral') if pd.notna(x) else 'Unknown'
-                    )
-                    
-                    # Calculate Profit/Loss Value
-                    # Look for quantity column
-                    quantity_col = self._find_quantity_column(merged, '_current')
-                    if quantity_col:
-                        merged['Quantity'] = self._clean_numeric_column(merged[quantity_col])
-                        st.info(f"Using quantity data from column: {quantity_col}")
-                    else:
-                        # Default to 100 shares if no quantity column is found
-                        merged['Quantity'] = 100
-                        st.info("No quantity column found, assuming 100 shares per stock")
-                    
-                    # Calculate Profit/Loss Value
-                    merged['Profit_Loss_Value'] = merged['Price_Change'] * mergedádiz['Quantity']
-                else:
-                    st.warning(f"Neither change columns nor price columns found. Available columns: {list(merged.columns)}")
-                    return
+                output_data['Net Change_curr'] = output_data['Last Sale_curr'] - output_data['Last Sale_prev']
             
-            # Find and process volume columns
-            volume_col_current = self._find_volume_column(merged, '_current')
-            volume_col_previous = self._find_volume_column(merged, '_previous')
+            if net_change_col_prev:
+                output_data['Net Change_prev'] = self._clean_numeric_column(output_data[f'{net_change_col_prev}_prev'])
+            else:
+                output_data['Net Change_prev'] = np.nan
             
-            if volume_col_current and volume_col_previous:
-                merged[volume_col_current] = self._clean_numeric_column(merged[volume_col_current])
-                merged[volume_col_previous] = self._clean_numeric_column(merged[volume_col_previous])
-                
-                merged['Volume_Change'] = merged[volume_col_current] - merged[volume_col_previous]
-                merged['Volume_Change_Pct'] = ((merged[volume_col_current] - merged[volume_col_previous]) / 
-                                             merged[volume_col_previous].replace(0, np.nan)) * 100
+            # Find % change columns
+            pct_change_col_curr = self._find_pct_change_column(current_data_clean)
+            pct_change_col_prev = self._find_pct_change_column(previous_data_clean)
             
-            # Find and process market cap columns
-            mcap_col_current = self._find_market_cap_column(merged, '_current')
-            mcap_col_previous = self._find_market_cap_column(merged, '_previous')
+            if pct_change_col_curr:
+                output_data['% Change_curr'] = self._clean_numeric_column(output_data[f'{pct_change_col_curr}_curr'])
+            else:
+                output_data['% Change_curr'] = ((output_data['Last Sale_curr'] - output_data['Last Sale_prev']) / 
+                                                output_data['Last Sale_prev'].replace(0, np.nan)) * 100
             
-            if mcap_col_current and mcap_col_previous:
-                merged[mcap_col_current] = self._clean_numeric_column(merged[mcap_col_current])
-                merged[mcap_col_previous] = self._clean_numeric_column(merged[mcap_col_previous])
-                
-                merged['MarketCap_Change'] = merged[mcap_col_current] - merged[mcap_col_previous]
-                merged['MarketCap_Change_Pct'] = ((merged[mcap_col_current] - merged[mcap_col_previous]) / 
-                                                merged[mcap_col_previous].replace(0, np.nan)) * 100
+            if pct_change_col_prev:
+                output_data['% Change_prev'] = self._clean_numeric_column(output_data[f'{pct_change_col_prev}_prev'])
+            else:
+                output_data['% Change_prev'] = np.nan
             
-            self.merged_data = merged
-            st.success(f"Successfully merged {len(merged)} stocks for comparative analysis")
+            # Calculate % Change_calc
+            output_data['% Change_calc'] = ((output_data['Last Sale_curr'] - output_data['Last Sale_prev']) / 
+                                           output_data['Last Sale_prev'].replace(0, np.nan)) * 100
+            
+            # Add Profit/Loss classification
+            output_data['Profit_Loss'] = output_data['% Change_calc'].apply(
+                lambda x: 'Profit' if x > 0 else ('Loss' if x < 0 else 'Neutral') if pd.notna(x) else 'Unknown'
+            )
+            
+            # Calculate Profit/Loss Value
+            quantity_col_curr = self._find_quantity_column(current_data_clean)
+            if quantity_col_curr:
+                output_data['Quantity'] = self._clean_numeric_column(output_data[f'{quantity_col_curr}_curr'])
+                st.info(f"Using quantity data from column: {quantity_col_curr}")
+            else:
+                output_data['Quantity'] = 100
+                st.info("No quantity column found, assuming 100 shares per stock")
+            
+            output_data['Profit_Loss_Value'] = (output_data['Last Sale_curr'] - output_data['Last Sale_prev']) * output_data['Quantity']
+            
+            # Find volume columns
+            volume_col_curr = self._find_volume_column(current_data_clean)
+            volume_col_prev = self._find_volume_column(previous_data_clean)
+            
+            if volume_col_curr:
+                output_data['Volume_curr'] = self._clean_numeric_column(output_data[f'{volume_col_curr}_curr'])
+            else:
+                output_data['Volume_curr'] = np.nan
+            
+            if volume_col_prev:
+                output_data['Volume_prev'] = self._clean_numeric_column(output_data[f'{volume_col_prev}_prev'])
+            else:
+                output_data['Volume_prev'] = np.nan
+            
+            # Find sector, industry, country columns
+            sector_col_curr = self._find_sector_column(current_data_clean)
+            industry_col_curr = self._find_industry_column(current_data_clean)
+            country_col_curr = self._find_country_column(current_data_clean)
+            
+            if sector_col_curr:
+                output_data['Sector_curr'] = output_data[f'{sector_col_curr}_curr'].astype(str)
+            else:
+                output_data['Sector_curr'] = 'Unknown'
+            
+            if industry_col_curr:
+                output_data['Industry_curr'] = output_data[f'{industry_col_curr}_curr'].astype(str)
+            else:
+                output_data['Industry_curr'] = 'Unknown'
+            
+            if country_col_curr:
+                output_data['Country_curr'] = output_data[f'{country_col_curr}_curr'].astype(str)
+            else:
+                output_data['Country_curr'] = 'Unknown'
+            
+            # Select final columns
+            final_columns = [
+                'Symbol', 'Last Sale_prev', 'Net Change_prev', '% Change_prev',
+                'Last Sale_curr', 'Net Change_curr', '% Change_curr',
+                'Profit_Loss', '% Change_calc', 'Profit_Loss_Value',
+                'Volume_prev', 'Volume_curr', 'Sector_curr', 'Industry_curr', 'Country_curr'
+            ]
+            self.merged_data = output_data[final_columns]
+            
+            st.success(f"Successfully prepared comparative analysis for {len(self.merged_data)} stocks")
             
         except Exception as e:
             st.error(f"Error preparing comparative data: {str(e)}")
@@ -156,112 +172,133 @@ class ComparativeAnalysis:
             st.error(traceback.format_exc())
     
     def _find_symbol_column(self, df: pd.DataFrame) -> str:
-        """Find symbol column with flexible naming."""
-        possible_names = [
-            'Symbol', 'symbol', 'SYMBOL', 
-            'Ticker', 'ticker', 'TICKER', 
-            'Stock', 'stock', 'STOCK',
-            'Code', 'code', 'CODE',
-            'Name', 'name', 'NAME',
-            'Company', 'company', 'COMPANY',
-            'Security', 'security', 'SECURITY'
-        ]
+        """Find symbol column with flexible, case-insensitive naming."""
+        possible_names = ['symbol', 'ticker', 'stock', 'code', 'name', 'company', 'security']
         
-        # First try exact matches
-        for col in possible_names:
-            if col in df.columns:
-                return col
-        
-        # Then try partial matches
         for col in df.columns:
             col_lower = col.lower()
-            if any(name.lower() in col_lower for name in ['symbol', 'ticker', 'stock', 'code', 'name', 'company']):
+            if any(name in col_lower for name in possible_names):
                 return col
         
-        # If no match found, use the first column as fallback
         if len(df.columns) > 0:
             st.warning(f"No symbol column found, using first column: {df.columns[0]}")
             return df.columns[0]
         
         return None
     
-    def _find_price_column(self, df: pd.DataFrame, suffix: str) -> str:
-        """Find price column with flexible naming."""
-        possible_names = [
-            f'Last Sale{suffix}', f'Price{suffix}', f'Close{suffix}', 
-            f'Last Price{suffix}', f'Current Price{suffix}', f'Market Price{suffix}',
-            f'last sale{suffix}', f'price{suffix}', f'close{suffix}',
-            f'LAST SALE{suffix}', f'PRICE{suffix}', f'CLOSE{suffix}',
-            f'Net Change{suffix}', f'% Change{suffix}', f'Change{suffix}'
-        ]
+    def _find_price_column(self, df: pd.DataFrame) -> str:
+        """Find price column with flexible, case-insensitive naming."""
+        possible_names = ['last sale', 'price', 'close', 'last price', 'current price', 'market price']
         
-        # First try exact matches
-        for col in possible_names:
-            if col in df.columns:
-                return col
-        
-        # Then try partial matches for price-related columns
         for col in df.columns:
             col_lower = col.lower()
-            if any(name in col_lower for name in ['price', 'sale', 'close', 'value']) and suffix.lower() in col_lower:
+            if any(name in col_lower for name in possible_names):
                 return col
         
         return None
     
-    def _find_volume_column(self, df: pd.DataFrame, suffix: str) -> str:
+    def _find_net_change_column(self, df: pd.DataFrame) -> str:
+        """Find net change column with flexible naming."""
+        possible_names = ['net change', 'change']
+        
+        for col in df.columns:
+            col_lower = col.lower()
+            if any(name in col_lower for name in possible_names) and '%' not in col_lower:
+                return col
+        
+        return None
+    
+    def _find_pct_change_column(self, df: pd.DataFrame) -> str:
+        """Find percentage change column with flexible naming."""
+        possible_names = ['% change', 'change %', 'pct change', 'percent change']
+        
+        for col in df.columns:
+            col_lower = col.lower()
+            if any(name in col_lower for name in possible_names):
+                return col
+        
+        return None
+    
+    def _find_volume_column(self, df: pd.DataFrame) -> str:
         """Find volume column with flexible naming."""
-        possible_names = [f'Volume{suffix}', f'Vol{suffix}', f'Trading Volume{suffix}']
-        for col in possible_names:
-            if col in df.columns:
+        possible_names = ['volume', 'vol', 'trading volume']
+        
+        for col in df.columns:
+            col_lower = col.lower()
+            if any(name in col_lower for name in possible_names):
                 return col
+        
         return None
     
-    def _find_market_cap_column(self, df: pd.DataFrame, suffix: str) -> str:
-        """Find market cap column with flexible naming."""
-        possible_names = [
-            f'Market Cap{suffix}', f'MarketCap{suffix}', f'Market Capitalization{suffix}',
-            f'Mkt Cap{suffix}', f'Market Value{suffix}'
-        ]
-        for col in possible_names:
-            if col in df.columns:
-                return col
-        return None
-    
-    def _find_quantity_column(self, df: pd.DataFrame, suffix: str) -> str:
+    def _find_quantity_column(self, df: pd.DataFrame) -> str:
         """Find quantity column with flexible naming."""
-        possible_names = [
-            f'Quantity{suffix}', f'Shares{suffix}', f'Holdings{suffix}',
-            f'quantity{suffix}', f'shares{suffix}', f'holdings{suffix}',
-            f'QUANTITY{suffix}', f'SHARES{suffix}', f'HOLDINGS{suffix}'
-        ]
-        for col in possible_names:
-            if col in df.columns:
+        possible_names = ['quantity', 'shares', 'holdings']
+        
+        for col in df.columns:
+            col_lower = col.lower()
+            if any(name in col_lower for name in possible_names):
                 return col
+        
+        return None
+    
+    def _find_sector_column(self, df: pd.DataFrame) -> str:
+        """Find sector column with flexible naming."""
+        possible_names = ['sector']
+        
+        for col in df.columns:
+            col_lower = col.lower()
+            if any(name in col_lower for name in possible_names):
+                return col
+        
+        return None
+    
+    def _find_industry_column(self, df: pd.DataFrame) -> str:
+        """Find industry column with flexible naming."""
+        possible_names = ['industry']
+        
+        for col in df.columns:
+            col_lower = col.lower()
+            if any(name in col_lower for name in possible_names):
+                return col
+        
+        return None
+    
+    def _find_country_column(self, df: pd.DataFrame) -> str:
+        """Find country column with flexible naming."""
+        possible_names = ['country']
+        
+        for col in df.columns:
+            col_lower = col.lower()
+            if any(name in col_lower for name in possible_names):
+                return col
+        
         return None
     
     def _clean_numeric_column(self, series: pd.Series) -> pd.Series:
         """Clean and convert column to numeric values."""
-        if series.dtype in ['object', 'string']:
-            # Handle percentage values specifically
-            cleaned = series.astype(str).str.strip()
-            
-            # Check if it's a percentage column
-            is_percentage = cleaned.str.contains('%', na=False).any()
-            
-            if is_percentage:
-                # Remove % sign and convert to float
-                cleaned = cleaned.str.replace('%', '', regex=False)
-                cleaned = cleaned.str.replace(',', '', regex=False)
-                cleaned = pd.to_numeric(cleaned, errors='coerce')
-            else:
+        try:
+            if series.dtype in ['object', 'string']:
+                cleaned = series.astype(str).str.strip()
+                
                 # Remove currency symbols, commas, and other non-numeric characters
                 cleaned = cleaned.str.replace(r'[$,€£¥₹]', '', regex=True)
-                cleaned = cleaned.str.replace(r'[^\d.-]', '', regex=True)
-                cleaned = pd.to_numeric(cleaned, errors='coerce')
-        else:
-            cleaned = pd.to_numeric(series, errors='coerce')
-        
-        return cleaned
+                cleaned = cleaned.str.replace(',', '', regex=True)
+                
+                # Handle percentages
+                if cleaned.str.contains('%', na=False).any():
+                    cleaned = cleaned.str.replace('%', '', regex=False)
+                    cleaned = pd.to_numeric(cleaned, errors='coerce') / 100
+                else:
+                    # Remove any remaining non-numeric characters except digits, decimal point, and minus
+                    cleaned = cleaned.str.replace(r'[^\d.-]', '', regex=True)
+                    cleaned = pd.to_numeric(cleaned, errors='coerce')
+            else:
+                cleaned = pd.to_numeric(series, errors='coerce')
+            
+            return cleaned
+        except Exception as e:
+            st.warning(f"Error cleaning numeric column: {str(e)}")
+            return pd.Series(np.nan, index=series.index)
     
     def get_performance_summary(self) -> Dict:
         """Generate comprehensive performance summary."""
@@ -269,56 +306,20 @@ class ComparativeAnalysis:
             return {}
         
         try:
-            # Price metrics analysis
-            if 'Price_Change_Pct' in self.merged_data.columns:
-                price_changes = self.merged_data['Price_Change_Pct'].dropna()
-                if not price_changes.empty:
-                    gainers = int((price_changes > 0).sum())
-                    losers = int((price_changes < 0).sum())
-                    unchanged = int((price_changes == 0).sum())
-                    avg_change = float(price_changes.mean())
-                    
-                    # Calculate total profit/loss value
-                    total_profit_loss_value = float(self.merged_data['Profit_Loss_Value'].sum()) if 'Profit_Loss_Value' in self.merged_data.columns else 0.0
-                    
-                    # Return simple structure that matches app expectations
-                    summary = {
-                        'total_stocks': len(self.merged_data),
-                        'gainers': gainers,
-                        'losers': losers,
-                        'unchanged': unchanged,
-                        'avg_change': avg_change,
-                        'max_gain': float(price_changes.max()),
-                        'max_loss': float(price_changes.min()),
-                        'total_profit_loss_value': total_profit_loss_value
-                    }
-                    
-                    return summary
-            
-            # Fallback for no price data
-            return {
+            summary = {
                 'total_stocks': len(self.merged_data),
-                'gainers': 0,
-                'losers': 0,
-                'unchanged': 0,
-                'avg_change': 0.0,
-                'max_gain': 0.0,
-                'max_loss': 0.0,
-                'total_profit_loss_value': 0.0
+                'gainers': int((self.merged_data['% Change_calc'] > 0).sum()),
+                'losers': int((self.merged_data['% Change_calc'] < 0).sum()),
+                'unchanged': int((self.merged_data['% Change_calc'] == 0).sum()),
+                'avg_change': float(self.merged_data['% Change_calc'].mean()),
+                'max_gain': float(self.merged_data['% Change_calc'].max()),
+                'max_loss': float(self.merged_data['% Change_calc'].min()),
+                'total_profit_loss_value': float(self.merged_data['Profit_Loss_Value'].sum())
             }
-            
+            return summary
         except Exception as e:
-            # Return default values if error occurs
-            return {
-                'total_stocks': 0,
-                'gainers': 0,
-                'losers': 0,
-                'unchanged': 0,
-                'avg_change': 0.0,
-                'max_gain': 0.0,
-                'max_loss': 0.0,
-                'total_profit_loss_value': 0.0
-            }
+            st.error(f"Error in performance summary: {str(e)}")
+            return {}
     
     def get_sector_analysis(self) -> pd.DataFrame:
         """Analyze performance by sector."""
@@ -326,23 +327,15 @@ class ComparativeAnalysis:
             return pd.DataFrame()
         
         try:
-            sector_col = 'Sector_current' if 'Sector_current' in self.merged_data.columns else None
-            if not sector_col:
-                return pd.DataFrame()
-            
-            sector_analysis = self.merged_data.groupby(sector_col).agg({
-                'Price_Change_Pct': ['mean', 'median', 'std', 'count'],
-                'Profit_Loss_Value': ['sum', 'mean'] if 'Profit_Loss_Value' in self.merged_data.columns else ['count'],
-                'MarketCap_Change_Pct': ['mean', 'median'] if 'MarketCap_Change_Pct' in self.merged_data.columns else ['count'],
-                'Volume_Change_Pct': ['mean', 'median'] if 'Volume_Change_Pct' in self.merged_data.columns else ['count']
+            sector_analysis = self.merged_data.groupby('Sector_curr').agg({
+                '% Change_calc': ['mean', 'median', 'std', 'count'],
+                'Profit_Loss_Value': ['sum', 'mean'],
+                'Volume_curr': ['mean', 'sum']
             }).round(2)
             
-            # Flatten column names
             sector_analysis.columns = ['_'.join(col).strip() for col in sector_analysis.columns]
             sector_analysis = sector_analysis.reset_index()
-            
             return sector_analysis
-            
         except Exception as e:
             st.error(f"Error in sector analysis: {str(e)}")
             return pd.DataFrame()
@@ -353,27 +346,16 @@ class ComparativeAnalysis:
             return pd.DataFrame()
         
         try:
-            industry_col = 'Industry_current' if 'Industry_current' in self.merged_data.columns else None
-            if not industry_col:
-                return pd.DataFrame()
-            
-            industry_analysis = self.merged_data.groupby(industry_col).agg({
-                'Price_Change_Pct': ['mean', 'median', 'std', 'count'],
-                'Profit_Loss_Value': ['sum', 'mean'] if 'Profit_Loss_Value' in self.merged_data.columns else ['count'],
-                'MarketCap_Change_Pct': ['mean'] if 'MarketCap_Change_Pct' in self.merged_data.columns else ['count'],
-                'Volume_Change_Pct': ['mean'] if 'Volume_Change_Pct' in self.merged_data.columns else ['count']
+            industry_analysis = self.merged_data.groupby('Industry_curr').agg({
+                '% Change_calc': ['mean', 'median', 'std', 'count'],
+                'Profit_Loss_Value': ['sum', 'mean'],
+                'Volume_curr': ['mean']
             }).round(2)
             
-            # Flatten column names
             industry_analysis.columns = ['_'.join(col).strip() for col in industry_analysis.columns]
             industry_analysis = industry_analysis.reset_index()
-            
-            # Sort by average price change and take top 20
-            if 'Price_Change_Pct_mean' in industry_analysis.columns:
-                industry_analysis = industry_analysis.sort_values('Price_Change_Pct_mean', ascending=False).head(20)
-            
+            industry_analysis = industry_analysis.sort_values('% Change_calc_mean', ascending=False).head(20)
             return industry_analysis
-            
         except Exception as e:
             st.error(f"Error in industry analysis: {str(e)}")
             return pd.DataFrame()
@@ -384,54 +366,17 @@ class ComparativeAnalysis:
             return pd.DataFrame()
         
         try:
-            country_col = 'Country_current' if 'Country_current' in self.merged_data.columns else None
-            if not country_col:
-                return pd.DataFrame()
-            
-            country_analysis = self.merged_data.groupby(country_col).agg({
-                'Price_Change_Pct': ['mean', 'median', 'count'],
-                'Profit_Loss_Value': ['sum', 'mean'] if 'Profit_Loss_Value' in self.merged_data.columns else ['count'],
-                'Market Cap_current': ['sum', 'mean'] if 'Market Cap_current' in self.merged_data.columns else ['count'],
-                'Volume_current': ['sum', 'mean'] if 'Volume_current' in self.merged_data.columns else ['count']
+            country_analysis = self.merged_data.groupby('Country_curr').agg({
+                '% Change_calc': ['mean', 'median', 'count'],
+                'Profit_Loss_Value': ['sum', 'mean'],
+                'Last Sale_curr': ['mean', 'sum']
             }).round(2)
             
-            # Flatten column names
             country_analysis.columns = ['_'.join(col).strip() for col in country_analysis.columns]
             country_analysis = country_analysis.reset_index()
-            
             return country_analysis
-            
         except Exception as e:
             st.error(f"Error in country analysis: {str(e)}")
-            return pd.DataFrame()
-    
-    def get_ipo_year_analysis(self) -> pd.DataFrame:
-        """Analyze performance by IPO year."""
-        if self.merged_data is None or self.merged_data.empty:
-            return pd.DataFrame()
-        
-        try:
-            ipo_col = 'IPO Year_current' if 'IPO Year_current' in self.merged_data.columns else None
-            if not ipo_col:
-                return pd.DataFrame()
-            
-            # Group by IPO decade for better visualization
-            self.merged_data['IPO_Decade'] = (self.merged_data[ipo_col] // 10) * 10
-            
-            ipo_analysis = self.merged_data.groupby('IPO_Decade').agg({
-                'Price_Change_Pct': ['mean', 'median', 'count'],
-                'Profit_Loss_Value': ['sum', 'mean'] if 'Profit_Loss_Value' in self.merged_data.columns else ['count'],
-                'Market Cap_current': ['mean'] if 'Market Cap_current' in self.merged_data.columns else ['count']
-            }).round(2)
-            
-            # Flatten column names
-            ipo_analysis.columns = ['_'.join(col).strip() for col in ipo_analysis.columns]
-            ipo_analysis = ipo_analysis.reset_index()
-            
-            return ipo_analysis
-            
-        except Exception as e:
-            st.error(f"Error in IPO year analysis: {str(e)}")
             return pd.DataFrame()
     
     def detect_outliers(self) -> Dict:
@@ -441,39 +386,19 @@ class ComparativeAnalysis:
         
         try:
             outliers = {}
+            mean_change = self.merged_data['% Change_calc'].mean()
+            std_change = self.merged_data['% Change_calc'].std()
+            threshold = 3
             
-            if 'Price_Change_Pct' in self.merged_data.columns:
-                price_changes = self.merged_data['Price_Change_Pct'].dropna()
-                mean_change = price_changes.mean()
-                std_change = price_changes.std()
-                
-                # Stocks with >3 standard deviations from mean
-                extreme_threshold = 3
-                extreme_positive = self.merged_data[
-                    self.merged_data['Price_Change_Pct'] > (mean_change + extreme_threshold * std_change)
-                ][['Symbol', 'Name_current', 'Price_Change_Pct', 'Profit_Loss_Value', 'Last Sale_current']].to_dict('records')
-                
-                extreme_negative = self.merged_data[
-                    self.merged_data['Price_Change_Pct'] < (mean_change - extreme_threshold * std_change)
-                ][['Symbol', 'Name_current', 'Price_Change_Pct', 'Profit_Loss_Value', 'Last Sale_current']].to_dict('records')
-                
-                outliers['extreme_gainers'] = extreme_positive
-                outliers['extreme_losers'] = extreme_negative
+            outliers['extreme_gainers'] = self.merged_data[
+                self.merged_data['% Change_calc'] > (mean_change + threshold * std_change)
+            ][['Symbol', '% Change_calc', 'Profit_Loss_Value', 'Last Sale_curr']].to_dict('records')
             
-            if 'Volume_Change_Pct' in self.merged_data.columns:
-                volume_changes = self.merged_data['Volume_Change_Pct'].dropna()
-                if not volume_changes.empty:
-                    vol_mean = volume_changes.mean()
-                    vol_std = volume_changes.std()
-                    
-                    high_volume_activity = self.merged_data[
-                        self.merged_data['Volume_Change_Pct'] > (vol_mean + 2 * vol_std)
-                    ][['Symbol', 'Name_current', 'Volume_Change_Pct', 'Volume_current']].to_dict('records')
-                    
-                    outliers['high_volume_activity'] = high_volume_activity
+            outliers['extreme_losers'] = self.merged_data[
+                self.merged_data['% Change_calc'] < (mean_change - threshold * std_change)
+            ][['Symbol', '% Change_calc', 'Profit_Loss_Value', 'Last Sale_curr']].to_dict('records')
             
             return outliers
-            
         except Exception as e:
             st.error(f"Error detecting outliers: {str(e)}")
             return {}
@@ -484,17 +409,13 @@ class ComparativeAnalysis:
             return pd.DataFrame()
         
         try:
-            # Select numerical columns for correlation
-            numerical_cols = [col for col in self.merged_data.columns if 
-                            self.merged_data[col].dtype in ['float64', 'int64'] and 
-                            'Change' in col or col == 'Profit_Loss_Value']
-            
-            if len(numerical_cols) < 2:
+            numerical_cols = ['Last Sale_curr', 'Last Sale_prev', '% Change_calc', 'Profit_Loss_Value', 'Volume_curr', 'Volume_prev']
+            available_cols = [col for col in numerical_cols if col in self.merged_data.columns]
+            if len(available_cols) < 2:
                 return pd.DataFrame()
             
-            correlation_matrix = self.merged_data[numerical_cols].corr()
+            correlation_matrix = self.merged_data[available_cols].corr()
             return correlation_matrix
-            
         except Exception as e:
             st.error(f"Error calculating correlations: {str(e)}")
             return pd.DataFrame()
@@ -508,70 +429,63 @@ class ComparativeAnalysis:
             fig = make_subplots(
                 rows=2, cols=2,
                 subplot_titles=('Price Change Distribution', 'Sector Performance', 
-                              'Price vs Market Cap Change', 'Profit/Loss Value Distribution'),
-                specs=[[{"type": "histogram"}, {"type": "bar"}],
-                       [{"type": "scatter"}, {"type": "histogram"}]]
+                              'Price vs Profit/Loss Value', 'Profit/Loss Value Distribution')
             )
             
             # Price change histogram
-            if 'Price_Change_Pct' in self.merged_data.columns:
-                fig.add_trace(
-                    go.Histogram(
-                        x=self.merged_data['Price_Change_Pct'],
-                        name='Price Change %',
-                        nbinsx=30,
-                        marker_color='lightblue'
-                    ),
-                    row=1, col=1
-                )
+            fig.add_trace(
+                go.Histogram(
+                    x=self.merged_data['% Change_calc'],
+                    name='Price Change %',
+                    nbinsx=30,
+                    marker_color='lightblue'
+                ),
+                row=1, col=1
+            )
             
             # Sector performance bar chart
-            if 'Sector_current' in self.merged_data.columns and 'Price_Change_Pct' in self.merged_data.columns:
-                sector_perf = self.merged_data.groupby('Sector_current')['Price_Change_Pct'].mean().sort_values(ascending=False)
-                fig.add_trace(
-                    go.Bar(
-                        x=sector_perf.index,
-                        y=sector_perf.values,
-                        name='Avg Sector Performance',
-                        marker_color='lightgreen'
-                    ),
-                    row=1, col=2
-                )
+            sector_perf = self.merged_data.groupby('Sector_curr')['% Change_calc'].mean().sort_values(ascending=False)
+            fig.add_trace(
+                go.Bar(
+                    x=sector_perf.index,
+                    y=sector_perf.values,
+                    name='Avg Sector Performance',
+                    marker_color='lightgreen'
+                ),
+                row=1, col=2
+            )
             
-            # Price vs Market Cap scatter
-            if 'Price_Change_Pct' in self.merged_data.columns and 'MarketCap_Change_Pct' in self.merged_data.columns:
-                fig.add_trace(
-                    go.Scatter(
-                        x=self.merged_data['Price_Change_Pct'],
-                        y=self.merged_data['MarketCap_Change_Pct'],
-                        mode='markers',
-                        name='Price vs Market Cap Change',
-                        text=self.merged_data['Symbol'],
-                        marker=dict(size=8, color='coral')
-                    ),
-                    row=2, col=1
-                )
+            # Price vs Profit/Loss Value scatter
+            fig.add_trace(
+                go.Scatter(
+                    x=self.merged_data['% Change_calc'],
+                    y=self.merged_data['Profit_Loss_Value'],
+                    mode='markers',
+                    name='Price vs Profit/Loss',
+                    text=self.merged_data['Symbol'],
+                    marker=dict(size=8, color='coral')
+                ),
+                row=2, col=1
+            )
             
             # Profit/Loss Value histogram
-            if 'Profit_Loss_Value' in self.merged_data.columns:
-                fig.add_trace(
-                    go.Histogram(
-                        x=self.merged_data['Profit_Loss_Value'],
-                        name='Profit/Loss Value ($)',
-                        nbinsx=30,
-                        marker_color='lightcoral'
-                    ),
-                    row=2, col=2
-                )
+            fig.add_trace(
+                go.Histogram(
+                    x=self.merged_data['Profit_Loss_Value'],
+                    name='Profit/Loss Value ($)',
+                    nbinsx=30,
+                    marker_color=40
+                ),
+                row=2, col=2
+            )
             
             fig.update_layout(
-                height=800,
-                title="Comprehensive Performance Dashboard",
+                height=600,
+                title="Stock Market Performance Dashboard",
                 showlegend=False
             )
             
             return fig
-            
         except Exception as e:
             st.error(f"Error creating dashboard: {str(e)}")
             return go.Figure()
