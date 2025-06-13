@@ -1144,4 +1144,109 @@ def advanced_analytics_section():
             if st.session_state.current_data is not None:
                 st.subheader("📈 Market Analysis Visualizations")
                 
-                daily_viz = Visualizations(daily_data=st.session_state.current
+                daily_viz = Visualizations(daily_data=st.session_state.current_data)
+                
+                # Example market visualization: Sector performance bar chart
+                if 'Sector' in st.session_state.current_data.columns and 'Last Sale' in st.session_state.current_data.columns:
+                    sector_perf = st.session_state.current_data.groupby('Sector')['Last Sale'].mean().sort_values(ascending=False)
+                    fig = go.Figure(data=[
+                        go.Bar(
+                            x=sector_perf.index,
+                            y=sector_perf.values,
+                            name='Average Price by Sector',
+                            marker_color='lightgreen'
+                        )
+                    ])
+                    fig.update_layout(
+                        title='Sector Performance Overview',
+                        xaxis_title='Sector',
+                        yaxis_title='Average Price ($)',
+                        height=500
+                    )
+                    st.plotly_chart(fig, use_container_width=True, key="sector_performance")
+                else:
+                    st.warning("Sector or price data not available for market visualization")
+    
+    with insights_tab:
+        st.subheader("💡 Trading Insights")
+        
+        if len(data_clean) > 50:
+            tech_indicators = TechnicalIndicators(data_clean)
+            signals = tech_indicators.get_trading_signals()
+            
+            if signals:
+                st.markdown("### Trading Signals")
+                signal_cols = st.columns(min(len(signals), 4))
+                
+                for i, (indicator, signal_data) in enumerate(signals.items()):
+                    with signal_cols[i % len(signal_cols)]:
+                        signal_value = signal_data.get('signal', 'Unknown')
+                        signal_strength = signal_data.get('strength', 'Unknown')
+                        
+                        if 'buy' in signal_value.lower():
+                            st.markdown(f"""
+                            <div class="success-card">
+                                <h4>{indicator}</h4>
+                                <p><strong>{signal_value}</strong></p>
+                                <p>Strength: {signal_strength}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        elif 'sell' in signal_value.lower():
+                            st.markdown(f"""
+                            <div class="warning-card">
+                                <h4>{indicator}</h4>
+                                <p><strong>{signal_value}</strong></p>
+                                <p>Strength: {signal_strength}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"""
+                            <div class="metric-card">
+                                <h4>{indicator}</h4>
+                                <p><strong>{signal_value}</strong></p>
+                                <p>Strength: {signal_strength}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+            else:
+                st.info("No trading signals available")
+        else:
+            st.warning("Insufficient data for trading insights (need >50 data points)")
+
+# Main App Layout
+def main():
+    """Main application layout with navigation."""
+    st.sidebar.title("Premium Financial Analysis Dashboard")
+    st.sidebar.markdown("Navigate through the analysis phases below")
+    
+    page = st.sidebar.radio(
+        "Select Analysis Phase",
+        ["Data Upload", "Phase 1: Comparative Analysis", "Phase 2: Deep Analysis", "Advanced Analytics"],
+        key="navigation"
+    )
+    
+    if page == "Data Upload":
+        data_upload_section()
+    elif page == "Phase 1: Comparative Analysis":
+        phase1_comparative_analysis_section()
+    elif page == "Phase 2: Deep Analysis":
+        phase2_deep_analysis_section()
+    elif page == "Advanced Analytics":
+        advanced_analytics_section()
+    
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("""
+    **About this Dashboard**
+    - Built with Streamlit & Plotly
+    - Integrates yfinance for real-time data
+    - Comprehensive stock analysis
+    - Professional risk assessment
+    """)
+    
+    st.sidebar.markdown("""
+    **Support**
+    - Contact: support@financialanalysis.com
+    - Documentation: [View Docs](https://docs.financialanalysis.com)
+    """)
+
+if __name__ == "__main__":
+    main()
