@@ -5,6 +5,8 @@ import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 import warnings
+import yfinance as yf
+from datetime import datetime, timedelta
 
 # Import utility modules
 from utils.data_processor import DataProcessor
@@ -18,8 +20,6 @@ from utils.fixed_processor import FixedDataProcessor
 from utils.comprehensive_fix import ComprehensiveFix
 from utils.risk_gauge import RiskGauge
 from utils.chart_formatter import ChartFormatter
-import yfinance as yf
-from datetime import datetime, timedelta
 
 warnings.filterwarnings('ignore')
 
@@ -32,20 +32,24 @@ st.set_page_config(
 )
 
 # Initialize session state
-if 'current_data' not in st.session_state:
-    st.session_state.current_data = None
-if 'previous_data' not in st.session_state:
-    st.session_state.previous_data = None
-if 'historical_data' not in st.session_state:
-    st.session_state.historical_data = None
-if 'selected_symbol' not in st.session_state:
-    st.session_state.selected_symbol = None
-if 'data_quality_report' not in st.session_state:
-    st.session_state.data_quality_report = None
-if 'comparative_analysis' not in st.session_state:
-    st.session_state.comparative_analysis = None
-if 'yfinance_data' not in st.session_state:
-    st.session_state.yfinance_data = None
+def initialize_session_state():
+    """Initialize or reset session state variables."""
+    session_keys = [
+        'current_data', 'previous_data', 'historical_data', 'selected_symbol',
+        'data_quality_report', 'comparative_analysis', 'yfinance_data'
+    ]
+    for key in session_keys:
+        if key not in st.session_state:
+            st.session_state[key] = None
+
+initialize_session_state()
+
+def clear_session_state():
+    """Clear all session state variables to reset the app."""
+    for key in list(st.session_state.keys()):
+        st.session_state[key] = None
+    st.success("✅ All data cleared! You can now upload new files.")
+    st.rerun()
 
 def data_upload_section():
     """Enhanced Data Upload & Processing section."""
@@ -72,6 +76,18 @@ def data_upload_section():
                     # Validate required columns
                     required_columns = ['Symbol', 'Last Sale', 'Net Change', '% Change', 'Sector', 'Industry']
                     if all(col in current_data.columns for col in required_columns):
+                        # Ensure numeric columns
+                        numeric_cols = ['Last Sale', 'Net Change', '% Change']
+                        for col in numeric_cols:
+                            try:
+                                current_data[col] = pd.to_numeric(current_data[col], errors='coerce')
+                                if current_data[col].isna().all():
+                                    st.error(f"Column '{col}' contains no valid numeric data.")
+                                    return
+                            except Exception as e:
+                                st.error(f"Error converting '{col}' to numeric: {str(e)}")
+                                return
+                        
                         st.session_state.current_data = current_data
                         st.session_state.data_quality_report = quality_report
                         
@@ -121,6 +137,18 @@ def data_upload_section():
                     # Validate required columns
                     required_columns = ['Symbol', 'Last Sale', 'Net Change', '% Change', 'Sector', 'Industry']
                     if all(col in previous_data.columns for col in required_columns):
+                        # Ensure numeric columns
+                        numeric_cols = ['Last Sale', 'Net Change', '% Change']
+                        for col in numeric_cols:
+                            try:
+                                previous_data[col] = pd.to_numeric(previous_data[col], errors='coerce')
+                                if previous_data[col].isna().all():
+                                    st.error(f"Column '{col}' contains no valid numeric data in previous data.")
+                                    return
+                            except Exception as e:
+                                st.error(f"Error converting '{col}' to numeric in previous data: {str(e)}")
+                                return
+                        
                         st.session_state.previous_data = previous_data
                         st.success(f"✅ Previous data loaded successfully! ({len(previous_data)} stocks)")
                         
@@ -136,7 +164,7 @@ def data_upload_section():
             st.error(f"Error processing previous data: {str(e)}")
     
     # Process Button - Show when both files are uploaded
-    if ('current_data' in st.session_state and 'previous_data' in st.session_state):
+    if st.session_state.current_data is not None and st.session_state.previous_data is not None:
         st.success("🎉 Both datasets are ready for analysis!")
         
         col1, col2, col3 = st.columns([1, 2, 1])
@@ -252,6 +280,20 @@ def phase1_comparative_analysis_section():
             if merged_data is None or merged_data.empty:
                 st.error("No matching stocks found between current and previous data. Please check Symbol columns.")
                 return
+            
+            # Validate merged data
+            required_cols = ['Last Sale_curr', 'Last Sale_prev', '% Change_calc', 'Profit/Loss']
+            missing_cols = [col for col in required_cols if col not in merged_data.columns]
+            if missing_cols:
+                st.error(f"Missing required columns in merged data: {', '.join(missing_cols)}")
+                return
+            
+            # Check for valid numeric data
+            if merged_data['% Change_calc'].isna().all():
+                st.error("No valid price change data calculated. Possible issues with 'Last Sale' values.")
+                st.write("Sample of merged data for debugging:")
+                st.dataframe(merged_data.head(), use_container_width=True)
+                return
         
         # Performance Summary
         st.subheader("📈 Overall Performance Summary")
@@ -274,6 +316,8 @@ def phase1_comparative_analysis_section():
             with col4:
                 losers = summary.get('losers', 0)
                 st.metric("Losers", losers, delta="negative" if losers > 0 else None)
+        else:
+            st.warning("No performance summary available.")
         
         # Top/Bottom Performers
         performers_col1, performers_col2 = st.columns(2)
@@ -314,8 +358,10 @@ def phase1_comparative_analysis_section():
             dashboard_fig = comp_analysis.create_performance_dashboard()
             if dashboard_fig and hasattr(dashboard_fig, 'data') and dashboard_fig.data:
                 st.plotly_chart(dashboard_fig, use_container_width=True)
-        except:
-            st.info("Advanced dashboard temporarily unavailable. Analysis continues below.")
+            else:
+                st.info("Performance dashboard not available due to insufficient data.")
+        except Exception as e:
+            st.info(f"Advanced dashboard temporarily unavailable: {str(e)}")
         
         # Professional Risk Assessment Dashboard
         st.subheader("🎯 Professional Risk Assessment")
@@ -368,8 +414,10 @@ def phase1_comparative_analysis_section():
                 with gauge_col3:
                     perf_fig = risk_gauge.create_performance_gauge(avg_performance)
                     st.plotly_chart(perf_fig, use_container_width=True)
+            else:
+                st.info("Risk assessment not available due to insufficient data.")
         except Exception as e:
-            st.info("Risk assessment calculations temporarily unavailable.")
+            st.info(f"Risk assessment calculations temporarily unavailable: {str(e)}")
         
         # Enhanced Stock Analysis with Filtering
         st.subheader("📊 Detailed Stock Analysis")
@@ -539,6 +587,7 @@ def phase1_comparative_analysis_section():
             
     except Exception as e:
         st.error(f"Error in Phase 1 analysis: {str(e)}")
+        st.write("For debugging, check the sample merged data above or verify input file formats.")
 
 def phase2_deep_analysis_section():
     """Enhanced Phase 2: Deep analysis with custom date ranges and yfinance integration."""
@@ -601,8 +650,6 @@ def phase2_deep_analysis_section():
             )
             start_date, end_date = None, None
         else:
-            from datetime import datetime, timedelta
-            
             col_start, col_end = st.columns(2)
             with col_start:
                 start_date = st.date_input(
@@ -900,7 +947,6 @@ def advanced_analytics_section():
                         
                         st.subheader("📈 Predicted Prices")
                         
-                        from datetime import datetime, timedelta
                         current_date = datetime.now()
                         pred_dates = [current_date + timedelta(days=i+1) for i in range(pred_days)]
                         
@@ -1223,6 +1269,11 @@ def main():
         ["Data Upload", "Phase 1: Comparative Analysis", "Phase 2: Deep Analysis", "Advanced Analytics"],
         key="navigation"
     )
+    
+    # Clear Analysis Button
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🗑️ Clear Analysis", type="primary"):
+        clear_session_state()
     
     if page == "Data Upload":
         data_upload_section()
