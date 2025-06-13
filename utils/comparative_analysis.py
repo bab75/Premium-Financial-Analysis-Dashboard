@@ -19,7 +19,7 @@ class ComparativeAnalysis:
     def __init__(self, current_data: pd.DataFrame, previous_data: pd.DataFrame):
         self.current_data = current_data.copy()
         self.previous_data = previous_data.copy()
-        self.merged_data = None
+        selfHXself.merged_data = None
         self._prepare_comparative_data()
     
     def _prepare_comparative_data(self):
@@ -44,7 +44,7 @@ class ComparativeAnalysis:
             if symbol_col_current != 'Symbol':
                 current_data_clean = current_data_clean.rename(columns={symbol_col_current: 'Symbol'})
             if symbol_col_previous != 'Symbol':
-                previous_data_clean = previous_data_clean.rename(columns={symbol_col_previous: 'Symbol'})
+                current_data_clean = current_data_clean.rename(columns={symbol_col_previous: 'Symbol'})
             
             # Clean and standardize symbols
             current_data_clean['Symbol'] = current_data_clean['Symbol'].astype(str).str.strip().str.upper()
@@ -52,7 +52,7 @@ class ComparativeAnalysis:
             
             # Remove empty symbols
             current_data_clean = current_data_clean[current_data_clean['Symbol'].notna() & (current_data_clean['Symbol'] != '')]
-            previous_data_clean = previous_data_clean[previous_data_clean['Symbol'].notna() & (previous_data_clean['Symbol'] != '')]
+            previous_data_CLEAN = previous_data_clean[previous_data_clean['Symbol'].notna() & (previous_data_clean['Symbol'] != '')]
             
             # Merge datasets on Symbol
             merged = pd.merge(
@@ -74,53 +74,49 @@ class ComparativeAnalysis:
             change_pct_col = None
             change_col = None
             
-            # Look for existing change columns in current data
-            for col in merged.columns:
-                if 'Change_current' in col and '%' in col:
-                    change_pct_col = col
-                elif 'Net Change_current' in col:
-                    change_col = col
+            # Skip change column check to force price-based calculations
+            # for col in merged.columns:
+            #     if 'Change_current' in col and '%' in col:
+            #         change_pct_col = col
+            #     elif 'Net Change_current' in col:
+            #         change_col = col
+            # 
+            # if change_pct_col:
+            #     st.info(f"Using existing change data from column: {change_pct_col}")
+            #     merged['Price_Change_Pct'] = self._clean_numeric_column(merged[change_pct_col])
+            #     
+            #     # Add profit/loss classification
+            #     merged['Profit_Loss'] = merged['Price_Change_Pct'].apply(
+            #         lambda x: 'Profit' if x > 0 else ('Loss' if x < 0 else 'Neutral') if pd.notna(x) else 'Unknown'
+            #     )
+            #     
+            #     if change_col:
+            #         merged['Price_Change'] = self._clean_numeric_column(merged[change_col])
+            # else:
+            # Fallback to calculating from price columns
+            price_col_current = self._find_price_column(merged, '_current')
+            price_col_previous = self._find_price_column(merged, '_previous')
             
-            # Debug: Log identified change columns
-            st.write(f"Change % column: {change_pct_col}, Net Change column: {change_col}")
-            
-            if change_pct_col:
-                # Use existing percentage change data
-                st.info(f"Using existing change data from column: {change_pct_col}")
-                merged['Price_Change_Pct'] = self._clean_numeric_column(merged[change_pct_col])
+            # Debug: Log identified price columns and sample values
+            st.write(f"Price column current: {price_col_current}, Price column previous: {price_col_previous}")
+            if price_col_current and price_col_previous:
+                merged[price_col_current] = self._clean_numeric_column(merged[price_col_current])
+                merged[price_col_previous] = self._clean_numeric_column(merged[price_col_previous])
+                st.write(f"Sample Last Sale_current after cleaning: {merged[price_col_current].head().tolist()}")
+                st.write(f"Sample Last Sale_previous after cleaning: {merged[price_col_previous].head().tolist()}")
+                
+                # Calculate price changes
+                merged['Price_Change'] = merged[price_col_current] - merged[price_col_previous]
+                merged['Price_Change_Pct'] = ((merged[price_col_current] - merged[price_col_previous]) / 
+                                            merged[price_col_previous].replace(0, np.nan)) * 100
                 
                 # Add profit/loss classification
                 merged['Profit_Loss'] = merged['Price_Change_Pct'].apply(
                     lambda x: 'Profit' if x > 0 else ('Loss' if x < 0 else 'Neutral') if pd.notna(x) else 'Unknown'
                 )
-                
-                if change_col:
-                    merged['Price_Change'] = self._clean_numeric_column(merged[change_col])
             else:
-                # Fallback to calculating from price columns
-                price_col_current = self._find_price_column(merged, '_current')
-                price_col_previous = self._find_price_column(merged, '_previous')
-                
-                # Debug: Log identified price columns
-                st.write(f"Price column current: {price_col_current}, Price column previous: {price_col_previous}")
-                
-                if price_col_current and price_col_previous:
-                    # Convert price columns to numeric, handling different formats
-                    merged[price_col_current] = self._clean_numeric_column(merged[price_col_current])
-                    merged[price_col_previous] = self._clean_numeric_column(merged[price_col_previous])
-                    
-                    # Calculate price changes
-                    merged['Price_Change'] = merged[price_col_current] - merged[price_col_previous]
-                    merged['Price_Change_Pct'] = ((merged[price_col_current] - merged[price_col_previous]) / 
-                                                merged[price_col_previous].replace(0, np.nan)) * 100
-                    
-                    # Add profit/loss classification
-                    merged['Profit_Loss'] = merged['Price_Change_Pct'].apply(
-                        lambda x: 'Profit' if x > 0 else ('Loss' if x < 0 else 'Neutral') if pd.notna(x) else 'Unknown'
-                    )
-                else:
-                    st.warning(f"Neither change columns nor price columns found. Available columns: {list(merged.columns)}")
-                    return
+                st.warning(f"Neither change columns nor price columns found. Available columns: {list(merged.columns)}")
+                return
             
             # Find and process volume columns
             volume_col_current = self._find_volume_column(merged, '_current')
@@ -233,7 +229,7 @@ class ComparativeAnalysis:
                 return col
         return None
     
-    def _clean_numeric_column(self, series: pd.DataFrame) -> pd.Series:
+    def _clean_numeric_column(self, series: pd.Series) -> pd.Series:
         """Clean and convert column to numeric values, handling currency symbols, commas, and percentages."""
         try:
             # Debug: Log sample values being cleaned
@@ -257,6 +253,11 @@ class ComparativeAnalysis:
                 if is_percentage:
                     # Remove % sign for percentage columns
                     cleaned = cleaned.str.replace('%', '', regex=False)
+                
+                # Log invalid values
+                invalid = cleaned[~cleaned.str.replace('-', '').str.replace('.', '').str.isnumeric()]
+                if not invalid.empty:
+                    st.warning(f"Invalid values in {series.name}: {invalid.head().tolist()}")
                 
                 # Convert to numeric, replacing invalid values with NaN
                 cleaned = pd.to_numeric(cleaned, errors='coerce')
@@ -443,6 +444,9 @@ class ComparativeAnalysis:
             outliers = {}
             
             if 'Price_Change_Pct' in self.merged_data.columns:
+                # Debug: Log Last Sale_current values for outliers
+                st.write(f"Last Sale_current in outliers: {self.merged_data['Last Sale_current'].dropna().head().tolist()}")
+                
                 price_changes = self.merged_data['Price_Change_Pct'].dropna()
                 mean_change = price_changes.mean()
                 std_change = price_changes.std()
