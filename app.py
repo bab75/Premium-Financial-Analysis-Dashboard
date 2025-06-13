@@ -228,12 +228,12 @@ def data_upload_section():
                 """, unsafe_allow_html=True)
 
 def phase1_comparative_analysis_section():
-    """Phase 1: Comprehensive comparative analysis between current and previous stock data."""
+    """Phase 1: Compare current and previous stock data."""
     st.header("📊 Phase 1: Comparative Analysis")
-    st.markdown("Compare current vs previous stock data for comprehensive market analysis")
+    st.markdown("Compare current vs previous stock data")
     
     if st.session_state.current_data is None or st.session_state.previous_data is None:
-        st.warning("⚠️ Please upload both current and previous stock data files in the Data Upload tab first.")
+        st.warning("⚠️ Upload both current and previous stock data in the Data Upload tab.")
         return
     
     try:
@@ -242,25 +242,25 @@ def phase1_comparative_analysis_section():
             merged_data = comp_analysis.merged_data if hasattr(comp_analysis, 'merged_data') else pd.DataFrame()
             
             if merged_data is None or merged_data.empty:
-                st.error("No matching stocks found between current and previous data. Please check Symbol columns.")
+                st.error("No matching stocks found. Check Symbol columns.")
                 return
         
         # Debug: Display merged data columns
         st.write("Merged Data Columns:", merged_data.columns.tolist())
         
         # Performance Summary
-        st.subheader("📈 Overall Performance Summary")
+        st.subheader("📈 Performance Summary")
         summary = comp_analysis.get_performance_summary()
         
         if summary:
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                st.metric("Total Stocks Analyzed", summary.get('total_stocks', 0))
+                st.metric("Total Stocks", summary.get('total_stocks', 0))
             
             with col2:
                 avg_change = summary.get('avg_change', 0)
-                st.metric("Average Price Change", f"{avg_change:.2f}%", delta=f"{avg_change:.2f}%")
+                st.metric("Avg Price Change", f"{avg_change:.2f}%", delta=f"{avg_change:.2f}%")
             
             with col3:
                 gainers = summary.get('gainers', 0)
@@ -275,7 +275,7 @@ def phase1_comparative_analysis_section():
         
         with performers_col1:
             st.subheader("🏆 Top 5 Performers")
-            if merged_data is not None and not merged_data.empty and 'Price_Change_Pct' in merged_data.columns:
+            if 'Price_Change_Pct' in merged_data.columns:
                 valid_data = merged_data.dropna(subset=['Price_Change_Pct'])
                 if not valid_data.empty:
                     top_performers = valid_data.nlargest(5, 'Price_Change_Pct')
@@ -284,13 +284,13 @@ def phase1_comparative_analysis_section():
                         change_pct = row.get('Price_Change_Pct', 0)
                         st.success(f"🟢 **{symbol}**: {change_pct:.2f}%")
                 else:
-                    st.info("No top performers data available")
+                    st.info("No top performers available")
             else:
-                st.info("No top performers data available")
+                st.info("No top performers available")
         
         with performers_col2:
             st.subheader("📉 Bottom 5 Performers")
-            if merged_data is not None and not merged_data.empty and 'Price_Change_Pct' in merged_data.columns:
+            if 'Price_Change_Pct' in merged_data.columns:
                 valid_data = merged_data.dropna(subset=['Price_Change_Pct'])
                 if not valid_data.empty:
                     bottom_performers = valid_data.nsmallest(5, 'Price_Change_Pct')
@@ -299,8 +299,16 @@ def phase1_comparative_analysis_section():
                         change_pct = row.get('Price_Change_Pct', 0)
                         st.error(f"🔴 **{symbol}**: {change_pct:.2f}%")
                 else:
-                    st.info("No bottom performers data available")
-            else:
+                    st.info("No bottom performers available")
+                   
+        # Performance Dashboard
+        st.subheader("📊 Performance Dashboard")
+        try:
+            dashboard_fig = comp_analysis.create_performance_dashboard()
+            if dashboard_fig and hasattr(dashboard_fig, 'data') and dashboard_fig.data:
+                st.plotly_chart(dashboard_fig, use_container_width=True)
+        except:
+            st.info("Dashboard unavailable. Analysis continues below.")
                 st.info("No bottom performers data available")
         
         # Performance Dashboard
