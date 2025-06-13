@@ -60,7 +60,7 @@ def data_upload_section():
         "Upload Current Stock Data (Excel/CSV)",
         type=['xlsx', 'xls', 'csv'],
         key="current_data_file",
-        help="Upload your current stock trading data with columns like Symbol, Name, Last Sale, % Change, etc."
+        help="Upload your current stock trading data with columns like Symbol, Name, Last Sale, % Change, Quantity, etc."
     )
     
     if current_file is not None:
@@ -240,6 +240,7 @@ def phase1_comparative_analysis_section():
         # Initialize comparative analysis
         with st.spinner("Performing comparative analysis..."):
             comp_analysis = ComparativeAnalysis(st.session_state.current_data, st.session_state.previous_data)
+            st.session_state.comparative_analysis = comp_analysis
             merged_data = comp_analysis.merged_data if hasattr(comp_analysis, 'merged_data') else pd.DataFrame()
             
             if merged_data is None or merged_data.empty:
@@ -251,7 +252,7 @@ def phase1_comparative_analysis_section():
         summary = comp_analysis.get_performance_summary()
         
         if summary:
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5 = st.columns(5)
             
             with col1:
                 st.metric("Total Stocks Analyzed", summary.get('total_stocks', 0))
@@ -267,6 +268,11 @@ def phase1_comparative_analysis_section():
             with col4:
                 losers = summary.get('losers', 0)
                 st.metric("Losers", losers, delta="negative" if losers > 0 else None)
+            
+            with col5:
+                total_profit_loss = summary.get('total_profit_loss_value', 0)
+                delta_color = "positive" if total_profit_loss > 0 else "negative" if total_profit_loss < 0 else None
+                st.metric("Total Profit/Loss", f"${total_profit_loss:,.2f}", delta=f"${total_profit_loss:,.2f}", delta_color=delta_color)
         
         # Top/Bottom Performers
         performers_col1, performers_col2 = st.columns(2)
@@ -280,7 +286,8 @@ def phase1_comparative_analysis_section():
                     for idx, row in top_performers.iterrows():
                         symbol = row.get('Symbol', 'N/A')
                         change_pct = row.get('Price_Change_Pct', 0)
-                        st.success(f"🟢 **{symbol}**: {change_pct:.2f}%")
+                        profit_loss_value = row.get('Profit_Loss_Value', 0)
+                        st.success(f"🟢 **{symbol}**: {change_pct:.2f}% (${profit_loss_value:,.2f})")
                 else:
                     st.info("No top performers data available")
             else:
@@ -295,7 +302,8 @@ def phase1_comparative_analysis_section():
                     for idx, row in bottom_performers.iterrows():
                         symbol = row.get('Symbol', 'N/A')
                         change_pct = row.get('Price_Change_Pct', 0)
-                        st.error(f"🔴 **{symbol}**: {change_pct:.2f}%")
+                        profit_loss_value = row.get('Profit_Loss_Value', 0)
+                        st.error(f"🔴 **{symbol}**: {change_pct:.2f}% (${profit_loss_value:,.2f})")
                 else:
                     st.info("No bottom performers data available")
             else:
@@ -424,7 +432,7 @@ def phase1_comparative_analysis_section():
                     filtered_df = filtered_df.sort_values('Price_Change_Pct', ascending=False)
                 
                 # Display metrics
-                metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
+                metrics_col1, metrics_col2, metrics_col3, metrics_col4, metrics_col5 = st.columns(5)
                 
                 with metrics_col1:
                     st.metric("Filtered Stocks", len(filtered_df))
@@ -437,6 +445,10 @@ def phase1_comparative_analysis_section():
                 with metrics_col4:
                     avg_change = filtered_df['Price_Change_Pct'].mean() if not filtered_df.empty else 0
                     st.metric("Avg Change", f"{avg_change:.2f}%", delta=f"{avg_change:.2f}%")
+                with metrics_col5:
+                    total_profit_loss = filtered_df['Profit_Loss_Value'].sum() if 'Profit_Loss_Value' in filtered_df.columns and not filtered_df.empty else 0
+                    delta_color = "positive" if total_profit_loss > 0 else "negative" if total_profit_loss < 0 else None
+                    st.metric("Total Profit/Loss", f"${total_profit_loss:,.2f}", delta=f"${total_profit_loss:,.2f}", delta_color=delta_color)
                 
                 # Display filtered results
                 if not filtered_df.empty:
@@ -451,7 +463,7 @@ def phase1_comparative_analysis_section():
                             price_previous_col = col
                     
                     # Prepare display columns with available ones
-                    display_columns = ['Symbol', 'Price_Change_Pct', 'Profit_Loss']
+                    display_columns = ['Symbol', 'Price_Change_Pct', 'Profit_Loss', 'Profit_Loss_Value']
                     
                     # Add name column if available
                     for col in filtered_df.columns:
@@ -475,10 +487,12 @@ def phase1_comparative_analysis_section():
                     # Filter to only available columns
                     available_columns = [col for col in display_columns if col in filtered_df.columns]
                     
-                    # Round numeric columns
+                    # Round numeric columns and format Profit_Loss_Value as currency
                     display_data = filtered_df[available_columns].copy()
                     for col in display_data.columns:
-                        if display_data[col].dtype in ['float64', 'int64']:
+                        if col == 'Profit_Loss_Value':
+                            display_data[col] = display_data[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else 'N/A')
+                        elif display_data[col].dtype in ['float64', 'int64']:
                             display_data[col] = display_data[col].round(2)
                     
                     st.dataframe(
@@ -506,7 +520,14 @@ def phase1_comparative_analysis_section():
         st.subheader("🏭 Sector Analysis")
         sector_analysis = comp_analysis.get_sector_analysis()
         if not sector_analysis.empty:
-            st.dataframe(sector_analysis, use_container_width=True)
+            # Format Profit_Loss_Value columns as currency
+            display_sector_data = sector_analysis.copy()
+            for col in display_sector_data.columns:
+                if 'Profit_Loss_Value' in col:
+                    display_sector_data[col] = display_sector_data[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else 'N/A')
+                elif display_sector_data[col].dtype in ['float64', 'int64']:
+                    display_sector_data[col] = display_sector_data[col].round(2)
+            st.dataframe(display_sector_data, use_container_width=True)
         else:
             st.info("Sector analysis not available - missing sector data")
         
@@ -514,7 +535,14 @@ def phase1_comparative_analysis_section():
         st.subheader("🏢 Industry Analysis (Top 20)")
         industry_analysis = comp_analysis.get_industry_analysis()
         if not industry_analysis.empty:
-            st.dataframe(industry_analysis, use_container_width=True)
+            # Format Profit_Loss_Value columns as currency
+            display_industry_data = industry_analysis.copy()
+            for col in display_industry_data.columns:
+                if 'Profit_Loss_Value' in col:
+                    display_industry_data[col] = display_industry_data[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else 'N/A')
+                elif display_industry_data[col].dtype in ['float64', 'int64']:
+                    display_industry_data[col] = display_industry_data[col].round(2)
+            st.dataframe(display_industry_data, use_container_width=True)
         else:
             st.info("Industry analysis not available - missing industry data")
         
@@ -529,7 +557,7 @@ def phase1_comparative_analysis_section():
                     st.write("**🚀 Extreme Gainers**")
                     if outliers.get('extreme_gainers'):
                         for stock in outliers['extreme_gainers']:
-                            st.success(f"• {stock['Symbol']}: {stock['Price_Change_Pct']:.2f}%")
+                            st.success(f"• {stock['Symbol']}: {stock['Price_Change_Pct']:.2f}% (${stock['Profit_Loss_Value']:,.2f})")
                     else:
                         st.info("No extreme gainers detected")
                 
@@ -537,7 +565,7 @@ def phase1_comparative_analysis_section():
                     st.write("**📉 Extreme Losers**")
                     if outliers.get('extreme_losers'):
                         for stock in outliers['extreme_losers']:
-                            st.error(f"• {stock['Symbol']}: {stock['Price_Change_Pct']:.2f}%")
+                            st.error(f"• {stock['Symbol']}: {stock['Price_Change_Pct']:.2f}% (${stock['Profit_Loss_Value']:,.2f})")
                     else:
                         st.info("No extreme losers detected")
         
