@@ -161,7 +161,7 @@ def data_upload_section():
                 if previous_data is not None:
                     # Validate required columns
                     required_columns = ['Symbol', 'Last Sale', 'Net Change', '% Change', 'Sector', 'Industry']
-                    if all(col in previous_data.columns for col in required_columns):
+                    if all(col in current_data.columns for col in required_columns):
                         # Clean and validate numeric columns
                         numeric_cols = ['Last Sale', 'Net Change', '% Change']
                         for col in numeric_cols:
@@ -940,7 +940,7 @@ def advanced_analytics_section():
     
     for col in ['Dividends', 'Stock Splits']:
         if col not in data_clean.columns:
-        data_clean[col] = 0
+            data_clean[col] = 0
     
     if 'Date' in data_clean.columns:
         data_clean = data_clean.rename(columns={'Date': 'Datetime'})
