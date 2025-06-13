@@ -57,13 +57,20 @@ def data_upload_section():
 
 # Clear Analysis Button
     if st.button("🗑️ Clear All Analysis", help="Reset all analysis data and uploaded files"):
-        st.session_state.clear()
-        st.session_state.current_data = None
-        st.session_state.previous_data = None
-        st.session_state.comparative_analysis = None
-        st.session_state.upload_key += 1  # Increment to reset file uploaders
-        st.success("✅ All analysis data and uploaded files cleared! Ready for new uploads.")
-        st.experimental_rerun()  # Force rerun to refresh UI
+        try:
+            # Clear session state except upload_key
+            for key in list(st.session_state.keys()):
+                if key != 'upload_key':
+                    del st.session_state[key]
+            # Increment upload_key to reset file uploaders
+            st.session_state.upload_key += 1
+            # Reinitialize session state
+            initialize_session_state()
+            st.success("✅ All analysis data and uploaded files cleared! Ready for new uploads.")
+            # Refresh UI without rerun to avoid state issues
+            st.rerun()  # Replaces st.experimental_rerun()
+        except Exception as e:
+            st.error(f"Error clearing analysis: {str(e)}")
     
     # Current Data Upload
     st.subheader("📊 Current Stock Data")
