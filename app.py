@@ -1453,17 +1453,23 @@ def main():
         advanced_analytics_section()
     # Clear Analysis Button
     if st.button("🗑️ Clear All Analysis", help="Reset all analysis data and uploaded files"):
-        try:
-            # Clear all session state
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            # Reinitialize immediately
-            initialize_session_state()
-            st.session_state.upload_key += 1  # Increment for file uploaders
-            st.success("✅ All analysis data and uploaded files cleared! Ready for new uploads.")
-            st.rerun()  # Refresh UI
-        except Exception as e:
-            st.error(f"Error clearing analysis: {str(e)}")
+     try:
+        # Clear all session state
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        # Manually reinitialize essential session state keys
+        st.session_state['current_data'] = None
+        st.session_state['previous_data'] = None
+        st.session_state['comparative_analysis'] = None
+        st.session_state['upload_key'] = st.session_state.get('upload_key', 0) + 1  # Increment for file uploaders
+        st.session_state['data_quality_report'] = None
+        st.session_state['historical_data'] = None
+        st.session_state['selected_symbol'] = None
+        st.session_state['yfinance_data'] = None
+        st.success("✅ All analysis data and uploaded files cleared! Ready for new uploads.")
+        st.rerun()  # Refresh UI
+     except Exception as e:
+        st.error(f"Error clearing analysis: {str(e)}")
 
 if __name__ == "__main__":
     main()
