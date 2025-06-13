@@ -71,9 +71,15 @@ class ComparativeAnalysis:
             
             st.info(f"Price columns identified - Current: {price_col_curr}, Previous: {price_col_prev}")
             
-            # Rename price columns to Last Sale
+            # Clean and assign price columns
             output_data['Last Sale_curr'] = self._clean_numeric_column(output_data[f'{price_col_curr}_curr'])
             output_data['Last Sale_prev'] = self._clean_numeric_column(output_data[f'{price_col_prev}_prev'])
+            
+            # Log invalid Last Sale values
+            invalid_curr = output_data['Last Sale_curr'].isna().sum()
+            invalid_prev = output_data['Last Sale_prev'].isna().sum()
+            if invalid_curr > 0 or invalid_prev > 0:
+                st.warning(f"Invalid price values detected: Current ({invalid_curr}), Previous ({invalid_prev})")
             
             # Find net change columns
             net_change_col_curr = self._find_net_change_column(current_data_clean)
@@ -96,8 +102,7 @@ class ComparativeAnalysis:
             if pct_change_col_curr:
                 output_data['% Change_curr'] = self._clean_numeric_column(output_data[f'{pct_change_col_curr}_curr'])
             else:
-                output_data['% Change_curr'] = ((output_data['Last Sale_curr'] - output_data['Last Sale_prev']) / 
-                                                output_data['Last Sale_prev'].replace(0, np.nan)) * 100
+                output_data['% Change_curr'] = np.nan
             
             if pct_change_col_prev:
                 output_data['% Change_prev'] = self._clean_numeric_column(output_data[f'{pct_change_col_prev}_prev'])
@@ -105,8 +110,16 @@ class ComparativeAnalysis:
                 output_data['% Change_prev'] = np.nan
             
             # Calculate % Change_calc
-            output_data['% Change_calc'] = ((output_data['Last Sale_curr'] - output_data['Last Sale_prev']) / 
-                                           output_data['Last Sale_prev'].replace(0, np.nan)) * 100
+            valid_mask = (output_data['Last Sale_prev'].notna()) & (output_data['Last Sale_prev'] != 0)
+            output_data['% Change_calc'] = np.nan
+            output_data.loc[valid_mask, '% Change_calc'] = ((output_data.loc[valid_mask, 'Last Sale_curr'] - 
+                                                            output_data.loc[valid_mask, 'Last Sale_prev']) / 
+                                                           output_data.loc[valid_mask, 'Last Sale_prev']) * 100
+            
+            # Log invalid % Change_calc
+            invalid_change = output_data['% Change_calc'].isna().sum()
+            if invalid_change > 0:
+                st.warning(f"{invalid_change} stocks have invalid % Change_calc due to missing or zero Last Sale_prev")
             
             # Add Profit/Loss classification
             output_data['Profit_Loss'] = output_data['% Change_calc'].apply(
@@ -122,7 +135,9 @@ class ComparativeAnalysis:
                 output_data['Quantity'] = 100
                 st.info("No quantity column found, assuming 100 shares per stock")
             
-            output_data['Profit_Loss_Value'] = (output_data['Last Sale_curr'] - output_data['Last Sale_prev']) * output_data['Quantity']
+            output_data['Profit_Loss_Value'] = np.nan
+            output_data.loc[valid_mask, 'Profit_Loss_Value'] = (output_data.loc[valid_mask, 'Last Sale_curr'] - 
+                                                                output_data.loc[valid_mask, 'Last Sale_prev']) * output_data.loc[valid_mask, 'Quantity']
             
             # Find volume columns
             volume_col_curr = self._find_volume_column(current_data_clean)
@@ -284,23 +299,15 @@ class ComparativeAnalysis:
             cleaned = series.astype(str).str.strip()
             
             # Remove currency symbols, commas, and percentages
-            cleaned = cleaned.str.replace(r'[\$,€£¥₹]', '', regex=True)
-            cleaned = cleaned.str.replace(',', '', regex=True)
+            cleaned = cleaned.replace(r'[\$,€£¥₹%]', '', regex=True).replace(',', '', regex=True)
             
-            # Handle percentages
-            if cleaned.str.contains('%', na=False).any():
-                cleaned = cleaned.str.replace('%', '')
-                cleaned = pd.to_numeric(cleaned, errors='coerce') / 100
-            else:
-                cleaned = pd.to_numeric(cleaned, errors='coerce')
-            
-            # Replace NaN with 0
-            cleaned = cleaned.fillna(0)
+            # Convert to numeric
+            cleaned = pd.to_numeric(cleaned, errors='coerce')
             
             return cleaned
         except Exception as e:
             st.warning(f"Error cleaning numeric column: {str(e)}")
-            return pd.Series(0, index=series.index)
+            return pd.Series(np.nan, index=series.index)
     
     def get_performance_summary(self) -> Dict:
         """Generate comprehensive performance summary."""
@@ -313,10 +320,10 @@ class ComparativeAnalysis:
                 'gainers': int((self.merged_data['% Change_calc'] > 0).sum()),
                 'losers': int((self.merged_data['% Change_calc'] < 0).sum()),
                 'unchanged': int((self.merged_data['% Change_calc'] == 0).sum()),
-                'avg_change': float(self.merged_data['% Change_calc'].mean()),
-                'max_gain': float(self.merged_data['% Change_calc'].max()),
-                'max_loss': float(self.merged_data['% Change_calc'].min()),
-                'total_profit_loss_value': float(self.merged_data['Profit_Loss_Value'].sum())
+                'avg_change': float(self.merged_data['% Change_calc'].mean()) if self.merged_data['% Change_calc'].notna().any() else np.nan,
+                'max_gain': float(self.merged_data['% Change_calc'].max()) if self.merged_data['% Change_calc'].notna().any() else np.nan,
+                'max_loss': float(self.merged_data['% Change_calc'].min()) if self.merged_data['% Change_calc'].notna().any() else np.nan,
+                'total_profit_loss_value': float(self.merged_data['Profit_Loss_Value'].sum()) if self.merged_data['Profit_Loss_Value'].notna().any() else 0
             }
             return summary
         except Exception as e:
@@ -357,137 +364,4 @@ class ComparativeAnalysis:
             industry_analysis.columns = ['_'.join(col).strip() for col in industry_analysis.columns]
             industry_analysis = industry_analysis.reset_index()
             industry_analysis = industry_analysis.sort_values('% Change_calc_mean', ascending=False).head(20)
-            return industry_analysis
-        except Exception as e:
-            st.error(f"Error in industry analysis: {str(e)}")
-            return pd.DataFrame()
-    
-    def get_country_analysis(self) -> pd.DataFrame:
-        """Analyze performance by country."""
-        if self.merged_data is None or self.merged_data.empty:
-            return pd.DataFrame()
-        
-        try:
-            country_analysis = self.merged_data.groupby('Country_curr').agg({
-                '% Change_calc': ['mean', 'median', 'count'],
-                'Profit_Loss_Value': ['sum', 'mean'],
-                'Last Sale_curr': ['mean', 'sum']
-            }).round(2)
-            
-            country_analysis.columns = ['_'.join(col).strip() for col in country_analysis.columns]
-            country_analysis = country_analysis.reset_index()
-            return country_analysis
-        except Exception as e:
-            st.error(f"Error in country analysis: {str(e)}")
-            return pd.DataFrame()
-    
-    def detect_outliers(self) -> Dict:
-        """Detect outlier stocks with extreme changes."""
-        if self.merged_data is None or self.merged_data.empty:
-            return {}
-        
-        try:
-            outliers = {}
-            mean_change = self.merged_data['% Change_calc'].mean()
-            std_change = self.merged_data['% Change_calc'].std()
-            threshold = 3
-            
-            outliers['extreme_gainers'] = self.merged_data[
-                self.merged_data['% Change_calc'] > (mean_change + threshold * std_change)
-            ][['Symbol', '% Change_calc', 'Profit_Loss_Value', 'Last Sale_curr']].to_dict('records')
-            
-            outliers['extreme_losers'] = self.merged_data[
-                self.merged_data['% Change_calc'] < (mean_change - threshold * std_change)
-            ][['Symbol', '% Change_calc', 'Profit_Loss_Value', 'Last Sale_curr']].to_dict('records')
-            
-            return outliers
-        except Exception as e:
-            st.error(f"Error detecting outliers: {str(e)}")
-            return {}
-    
-    def calculate_correlations(self) -> pd.DataFrame:
-        """Calculate correlation matrix for numerical metrics."""
-        if self.merged_data is None or self.merged_data.empty:
-            return pd.DataFrame()
-        
-        try:
-            numerical_cols = ['Last Sale_curr', 'Last Sale_prev', '% Change_calc', 'Profit_Loss_Value', 'Volume_curr', 'Volume_prev']
-            available_cols = [col for col in numerical_cols if col in self.merged_data.columns]
-            if len(available_cols) < 2:
-                return pd.DataFrame()
-            
-            correlation_matrix = self.merged_data[available_cols].corr()
-            return correlation_matrix
-        except Exception as e:
-            st.error(f"Error calculating correlations: {str(e)}")
-            return pd.DataFrame()
-    
-    def create_performance_dashboard(self) -> go.Figure:
-        """Create comprehensive performance dashboard."""
-        if self.merged_data is None or self.merged_data.empty:
-            return go.Figure()
-        
-        try:
-            fig = make_subplots(
-                rows=2, cols=2,
-                subplot_titles=('Price Change Distribution', 'Sector Performance', 
-                              'Price vs Profit/Loss Value', 'Profit/Loss Value Distribution')
-            )
-            
-            # Price change histogram
-            fig.add_trace(
-                go.Histogram(
-                    x=self.merged_data['% Change_calc'],
-                    name='Price Change %',
-                    nbinsx=30,
-                    marker_color='lightblue'
-                ),
-                row=1, col=1
-            )
-            
-            # Sector performance bar chart
-            sector_perf = self.merged_data.groupby('Sector_curr')['% Change_calc'].mean().sort_values(ascending=False)
-            fig.add_trace(
-                go.Bar(
-                    x=sector_perf.index,
-                    y=sector_perf.values,
-                    name='Avg Sector Performance',
-                    marker_color='lightgreen'
-                ),
-                row=1, col=2
-            )
-            
-            # Price vs Profit/Loss Value scatter
-            fig.add_trace(
-                go.Scatter(
-                    x=self.merged_data['% Change_calc'],
-                    y=self.merged_data['Profit_Loss_Value'],
-                    mode='markers',
-                    name='Price vs Profit/Loss',
-                    text=self.merged_data['Symbol'],
-                    marker=dict(size=8, color='coral')
-                ),
-                row=2, col=1
-            )
-            
-            # Profit/Loss Value histogram
-            fig.add_trace(
-                go.Histogram(
-                    x=self.merged_data['Profit_Loss_Value'],
-                    name='Profit/Loss Value ($)',
-                    nbinsx=30,
-                    marker_color='lightcoral'
-                ),
-                row=2, col=2
-            )
-            
-            fig.update_layout(
-                height=600,
-                title="Stock Market Performance Dashboard",
-                showlegend=False
-            )
-            
-            return fig
-        except Exception as e:
-            st.error(f"Error creating dashboard: {str(e)}")
-            return go.Figure()
+            return industry
