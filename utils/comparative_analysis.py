@@ -26,6 +26,8 @@ class ComparativeAnalysis:
             
             if not symbol_col_current or not symbol_col_previous:
                 st.error("Symbol column not found. Please ensure your data has a column named Symbol, Ticker, or similar")
+                st.write(f"Current columns: {list(self.current_data.columns)}")
+                st.write(f"Previous columns: {list(self.previous_data.columns)}")
                 return
             
             # Standardize symbol column names
@@ -45,6 +47,10 @@ class ComparativeAnalysis:
             current_data_clean = current_data_clean[current_data_clean['Symbol'].notna() & (current_data_clean['Symbol'] != '')]
             previous_data_clean = previous_data_clean[previous_data_clean['Symbol'].notna() & (previous_data_clean['Symbol'] != '')]
             
+            # Debug: Show symbol counts
+            st.write(f"Current data symbols: {len(current_data_clean['Symbol'].unique())}")
+            st.write(f"Previous data symbols: {len(previous_data_clean['Symbol'].unique())}")
+            
             # Merge datasets on Symbol
             merged = pd.merge(
                 current_data_clean, 
@@ -56,6 +62,8 @@ class ComparativeAnalysis:
             
             if merged.empty:
                 st.warning(f"No matching symbols found. Current: {len(current_data_clean)}, Previous: {len(previous_data_clean)}")
+                st.write(f"Sample current symbols: {current_data_clean['Symbol'].head().tolist()}")
+                st.write(f"Sample previous symbols: {previous_data_clean['Symbol'].head().tolist()}")
                 return
             
             # Calculate price changes
@@ -66,6 +74,10 @@ class ComparativeAnalysis:
                 # Convert price columns to numeric
                 merged[price_col_current] = self._clean_numeric_column(merged[price_col_current])
                 merged[price_col_previous] = self._clean_numeric_column(merged[price_col_previous])
+                
+                # Debug: Check for non-numeric values
+                st.write(f"Sample {price_col_current} values: {merged[price_col_current].head().tolist()}")
+                st.write(f"Sample {price_col_previous} values: {merged[price_col_previous].head().tolist()}")
                 
                 # Calculate profit/loss and percentage change
                 merged['Profit_Loss'] = merged[price_col_current] - merged[price_col_previous]
@@ -134,23 +146,26 @@ class ComparativeAnalysis:
     
     def _clean_numeric_column(self, series: pd.Series) -> pd.Series:
         """Clean and convert column to numeric values."""
-        if series.dtype in ['object', 'string']:
-            cleaned = series.astype(str).str.strip()
-            cleaned = cleaned.str.replace(r'[$,€£¥₹]', '', regex=True)
-            cleaned = cleaned.str.replace(r'[^\d.-]', '', regex=True)
-            cleaned = pd.to_numeric(cleaned_data, errors='coerce')
-        else:
-            cleaned = pd.to_numeric(cleaned_data, errors='replace')
-            
-        return cleaned
+        try:
+            if series.dtype in ['object', 'string']:
+                cleaned = series.astype(str).str.strip()
+                cleaned = cleaned.str.replace(r'[$,€£¥₹]', '', regex=True)
+                cleaned = cleaned.str.replace(r'[^\d.-]', '', regex=True)
+                cleaned = pd.to_numeric(cleaned, errors='coerce')
+            else:
+                cleaned = pd.to_numeric(series, errors='coerce')
+            return cleaned
+        except Exception as e:
+            st.error(f"Error cleaning numeric column: {str(e)}")
+            return series
     
     def get_performance_summary(self) -> Dict:
         """Generate simplified performance summary."""
-        if self.merged_data or self.merged_data.empty:
+        if self.merged_data is None or self.merged_data.empty:
             return {}
         
         try:
-            if 'Price_Change_Pct' in self.merged_data_cleaned:
+            if 'Price_Change_Pct' in self.merged_data.columns:
                 price_changes = self.merged_data['Price_Change_Pct'].dropna()
                 if not price_changes.empty:
                     gainers = int((price_changes > 0).sum())
