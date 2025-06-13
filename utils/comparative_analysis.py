@@ -171,28 +171,32 @@ class ComparativeAnalysis:
         
         return None
     
-    def _find_price_column(self, df: pd.DataFrame, suffix: str) -> str:
-        """Find price column with flexible naming."""
-        possible_names = [
-            f'Last Sale{suffix}', f'Price{suffix}', f'Close{suffix}', 
-            f'Last Price{suffix}', f'Current Price{suffix}', f'Market Price{suffix}',
-            f'last sale{suffix}', f'price{suffix}', f'close{suffix}',
-            f'LAST SALE{suffix}', f'PRICE{suffix}', f'CLOSE{suffix}',
-            f'Net Change{suffix}', f'% Change{suffix}', f'Change{suffix}'
-        ]
-        
-        # First try exact matches
-        for col in possible_names:
-            if col in df.columns:
-                return col
-        
-        # Then try partial matches for price-related columns
-        for col in df.columns:
-            col_lower = col.lower()
-            if any(name in col_lower for name in ['price', 'sale', 'close', 'value']) and suffix.lower() in col_lower:
-                return col
-        
-        return None
+   def _find_price_column(self, df: pd.DataFrame, suffix: str) -> str:
+    possible_names = [
+        f'Last Sale{suffix}', f'Price{suffix}', f'Close{suffix}', 
+        f'Last Price{suffix}', f'Current Price{suffix}', f'Market Price{suffix}',
+        f'last sale{suffix}', f'price{suffix}', f'close{suffix}',
+        f'LAST SALE{suffix}', f'PRICE{suffix}', f'CLOSE{suffix}',
+        f'Net Change{suffix}', f'% Change{suffix}', f'Change{suffix}',
+        f'Last{suffix}', f'Closing Price{suffix}', f'Current{suffix}'
+    ]
+    
+    for col in possible_names:
+        if col in df.columns:
+            return col
+    
+    for col in df.columns:
+        col_lower = col.lower()
+        if any(name in col_lower for name in ['price', 'sale', 'close', 'value', 'last', 'current', 'closing']) and suffix.lower() in col_lower:
+            return col
+    
+    # Fallback to any numeric column with suffix
+    for col in df.columns:
+        if suffix.lower() in col.lower() and df[col].dtype in ['float64', 'int64']:
+            st.warning(f"No standard price column found, using fallback: {col}")
+            return col
+    
+    return None
     
     def _find_volume_column(self, df: pd.DataFrame, suffix: str) -> str:
         """Find volume column with flexible naming."""
