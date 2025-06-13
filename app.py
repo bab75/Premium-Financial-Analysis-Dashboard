@@ -1451,28 +1451,40 @@ def main():
     
     with tab4:
         advanced_analytics_section()
-   # Clear Analysis Button
+
+# Clear Analysis Button
 if st.button("🗑️ Clear All Analysis", help="Reset all analysis data and uploaded files"):
     try:
-        # Clear all session state keys except Streamlit's internal widget keys
-        for key in list(st.session_state.keys()):
-            if not key.startswith("file_uploader_"):  # Protect file_uploader widget keys
+        # Define keys to clear (specific to your app)
+        keys_to_clear = [
+            'current_data',
+            'previous_data',
+            'historical_data',
+            'selected_symbol',
+            'data_quality_report',
+            'comparative_analysis',
+            'yfinance_data'
+        ]
+        
+        # Clear only the specified session state keys
+        for key in keys_to_clear:
+            if key in st.session_state:
                 del st.session_state[key]
-
-        # Reinitialize essential session state keys
+        
+        # Reinitialize keys to None to ensure consistent state
         st.session_state['current_data'] = None
         st.session_state['previous_data'] = None
-        st.session_state['comparative_analysis'] = None
-        st.session_state['data_quality_report'] = None
         st.session_state['historical_data'] = None
         st.session_state['selected_symbol'] = None
+        st.session_state['data_quality_report'] = None
+        st.session_state['comparative_analysis'] = None
         st.session_state['yfinance_data'] = None
-
-        # Increment upload_key to force file uploader reset (optional, may not be needed with static keys)
+        
+        # Optional: Increment upload_key if used elsewhere in the app
         st.session_state['upload_key'] = st.session_state.get('upload_key', 0) + 1
-
+        
         st.success("✅ All analysis data and uploaded files cleared! Ready for new uploads.")
-        st.rerun()  # Refresh UI
+        st.rerun()  # Refresh UI to reflect cleared state
     except Exception as e:
         st.error(f"Error clearing analysis: {str(e)}")
        
