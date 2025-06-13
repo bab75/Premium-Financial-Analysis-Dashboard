@@ -11,10 +11,11 @@ from typing import Dict, Optional
 class ComparativeAnalysis:
     """Perform simplified comparative analysis between current and previous stock data."""
     
-    def __init__(self, current_data: pd.DataFrame, previous_data: pd.DataFrame):
+    def __init__(self, current_data: pd.DataFrame, previous_data: pd.DataFrame, price_col_name: Optional[str] = None):
         self.current_data = current_data.copy()
         self.previous_data = previous_data.copy()
         self.merged_data = None
+        self.price_col_name = price_col_name  # Allow manual specification of price column
         self._prepare_comparative_data()
     
     def _prepare_comparative_data(self):
@@ -67,8 +68,8 @@ class ComparativeAnalysis:
                 return
             
             # Calculate price changes
-            price_col_current = self._find_price_column(merged, '_current')
-            price_col_previous = self._find_price_column(merged, '_previous')
+            price_col_current = self.price_col_name + '_current' if self.price_col_name else self._find_price_column(merged, '_current')
+            price_col_previous = self.price_col_name + '_previous' if self.price_col_name else self._find_price_column(merged, '_previous')
             
             if price_col_current and price_col_previous:
                 # Debug: Show raw price column data before cleaning
@@ -80,7 +81,7 @@ class ComparativeAnalysis:
                 merged[price_col_current] = self._clean_numeric_column(merged[price_col_current])
                 merged[price_col_previous] = self._clean_numeric_column(merged[price_col_previous])
                 
-                # Debug: Show cleaned price values
+                # Debug: Show cleaned price values and non-numeric counts
                 st.write(f"Sample cleaned {price_col_current} values: {merged[price_col_current].head().tolist()}")
                 st.write(f"Sample cleaned {price_col_previous} values: {merged[price_col_previous].head().tolist()}")
                 
@@ -89,7 +90,7 @@ class ComparativeAnalysis:
                 st.write(f"Number of stocks with valid prices: {len(valid_prices)}")
                 
                 if len(valid_prices) == 0:
-                    st.warning("No valid numeric price data found after cleaning.")
+                    st.warning("No valid numeric price data found after cleaning. Please check the price columns in your CSVs.")
                     return
                 
                 # Calculate profit/loss and percentage change
@@ -141,6 +142,7 @@ class ComparativeAnalysis:
         """Find price column with flexible naming."""
         possible_names = [
             f'Last Sale{suffix}', f'Price{suffix}', f'Close{suffix}', 
+            f'Closing Price{suffix}', f'Stock Price{suffix}',  # Added common alternatives
             f'Last Price{suffix}', f'Current Price{suffix}', f'Market Price{suffix}',
             f'last sale{suffix}', f'price{suffix}', f'close{suffix}',
             f'LAST SALE{suffix}', f'PRICE{suffix}', f'CLOSE{suffix}'
@@ -152,7 +154,7 @@ class ComparativeAnalysis:
         
         for col in df.columns:
             col_lower = col.lower()
-            if any(name in col_lower for name in ['price', 'sale', 'close']) and suffix.lower() in col_lower:
+            if any(name in col_lower for name in ['price', 'sale', 'close', 'stock price']) and suffix.lower() in col_lower:
                 return col
         
         return None
@@ -163,7 +165,7 @@ class ComparativeAnalysis:
             if series.dtype in ['object', 'string']:
                 cleaned = series.astype(str).str.strip()
                 # Handle common non-numeric cases
-                cleaned = cleaned.replace(['', 'N/A', 'NA', 'n/a', '-', 'None'], np.nan)
+                cleaned = cleaned.replace(['', 'N/A', 'NA', 'n/a', '-', 'None', 'null', 'NULL'], np.nan)
                 cleaned = cleaned.str.replace(r'[$,€£¥₹%]', '', regex=True)  # Remove currency and % symbols
                 cleaned = cleaned.str.replace(r'[^\d.-]', '', regex=True)    # Keep only digits, decimal, and negative
                 cleaned = pd.to_numeric(cleaned, errors='coerce')
@@ -172,6 +174,10 @@ class ComparativeAnalysis:
             # Debug: Report non-numeric values
             if cleaned.isna().sum() > 0:
                 st.warning(f"Found {cleaned.isna().sum()} non-numeric or missing values in column")
+                # Show sample non-numeric values
+                non_numeric = series[cleaned.isna()].head().tolist()
+                if non_numeric:
+                    st.write(f"Sample non-numeric values: {non_numeric}")
             return cleaned
         except Exception as e:
             st.error(f"Error cleaning numeric column: {str(e)}")
