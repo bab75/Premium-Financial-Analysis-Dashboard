@@ -5,6 +5,9 @@ import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 import warnings
+import yfinance as yf
+from datetime import datetime, timedelta
+import re
 
 # Import utility modules
 from utils.data_processor import DataProcessor
@@ -18,8 +21,6 @@ from utils.fixed_processor import FixedDataProcessor
 from utils.comprehensive_fix import ComprehensiveFix
 from utils.risk_gauge import RiskGauge
 from utils.chart_formatter import ChartFormatter
-import yfinance as yf
-from datetime import datetime, timedelta
 
 warnings.filterwarnings('ignore')
 
@@ -32,25 +33,47 @@ st.set_page_config(
 )
 
 # Initialize session state
-if 'current_data' not in st.session_state:
-    st.session_state.current_data = None
-if 'previous_data' not in st.session_state:
-    st.session_state.previous_data = None
-if 'historical_data' not in st.session_state:
-    st.session_state.historical_data = None
-if 'selected_symbol' not in st.session_state:
-    st.session_state.selected_symbol = None
-if 'data_quality_report' not in st.session_state:
-    st.session_state.data_quality_report = None
-if 'comparative_analysis' not in st.session_state:
-    st.session_state.comparative_analysis = None
-if 'yfinance_data' not in st.session_state:
-    st.session_state.yfinance_data = None
+def initialize_session_state():
+    """Initialize or reset session state variables."""
+    session_keys = [
+        'current_data', 'previous_data', 'historical_data', 'selected_symbol',
+        'data_quality_report', 'comparative_analysis', 'yfinance_data'
+    ]
+    for key in session_keys:
+        if key not in st.session_state:
+            st.session_state[key] = None
+
+initialize_session_state()
+
+def clear_session_state_callback():
+    """Callback to clear all session state variables safely."""
+    keys_to_clear = [key for key in st.session_state.keys() if key not in ['navigation']]
+    for key in keys_to_clear:
+        st.session_state[key] = None
+    st.session_state['clear_message'] = "✅ All data cleared! You can now upload new files."
+    st.rerun()
+
+def clean_numeric_column(series):
+    """Clean a column to ensure numeric values, removing common non-numeric characters."""
+    original_series = series.copy()  # Keep original for debugging
+    if series.dtype == 'object':
+        # Replace common invalid values with NaN
+        series = series.replace(['N/A', 'NA', '--', ''], np.nan)
+        # Remove $, commas, %, and other non-numeric characters
+        series = series.str.replace(r'[\$,%]', '', regex=True).str.strip()
+        # Convert to numeric
+        series = pd.to_numeric(series, errors='coerce')
+    return series, original_series
 
 def data_upload_section():
     """Enhanced Data Upload & Processing section."""
     st.header("📁 Enhanced Data Upload & Processing")
     st.markdown("Upload your stock data files for comprehensive Phase 1 & Phase 2 analysis")
+    
+    # Display clear message if set
+    if 'clear_message' in st.session_state:
+        st.success(st.session_state['clear_message'])
+        del st.session_state['clear_message']
     
     processor = DataProcessor()
     
@@ -60,7 +83,7 @@ def data_upload_section():
         "Upload Current Stock Data (Excel/CSV)",
         type=['xlsx', 'xls', 'csv'],
         key="current_data_file",
-        help="Upload your current stock trading data with columns like Symbol, Name, Last Sale, % Change, etc."
+        help="Upload your current stock trading data with columns like Symbol, Last Sale, Net Change, % Change, Sector, Industry"
     )
     
     if current_file is not None:
@@ -69,35 +92,54 @@ def data_upload_section():
                 current_data, quality_report = processor.process_daily_data(current_file)
                 
                 if current_data is not None:
-                    st.session_state.current_data = current_data
-                    st.session_state.data_quality_report = quality_report
-                    
-                    st.success(f"✅ Current data loaded successfully! ({len(current_data)} stocks)")
-                    
-                    # Data quality metrics
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    with col1:
-                        st.metric("Total Stocks", len(current_data))
-                    with col2:
-                        # Fix valid symbols count
-                        if 'Symbol' in current_data.columns:
+                    # Validate required columns
+                    required_columns = ['Symbol', 'Last Sale', 'Net Change', '% Change', 'Sector', 'Industry']
+                    if all(col in current_data.columns for col in required_columns):
+                        # Clean and validate numeric columns
+                        numeric_cols = ['Last Sale', 'Net Change', '% Change']
+                        for col in numeric_cols:
+                            try:
+                                current_data[col], original_col = clean_numeric_column(current_data[col])
+                                if current_data[col].isna().all():
+                                    st.error(f"Column '{col}' contains no valid numeric data after cleaning.")
+                                    st.write(f"Sample raw values in '{col}' (first 5 rows):")
+                                    st.write(original_col.head().tolist())
+                                    st.info("Please ensure the column contains numeric values (e.g., 100.50) without symbols like $, text like 'N/A', or empty cells. Check file encoding or column names.")
+                                    return
+                                if current_data[col].isna().sum() > 0:
+                                    st.warning(f"Column '{col}' has {current_data[col].isna().sum()} missing or invalid values, which may affect analysis.")
+                            except Exception as e:
+                                st.error(f"Error processing column '{col}': {str(e)}")
+                                return
+                        
+                        st.session_state.current_data = current_data
+                        st.session_state.data_quality_report = quality_report
+                        
+                        st.success(f"✅ Current data loaded successfully! ({len(current_data)} stocks)")
+                        
+                        # Data quality metrics
+                        col1, col2, col3, col4 = st.columns(4)
+                        
+                        with col1:
+                            st.metric("Total Stocks", len(current_data))
+                        with col2:
                             valid_count = len(current_data[current_data['Symbol'].notna() & 
                                                           (current_data['Symbol'].astype(str).str.strip() != '') & 
                                                           (current_data['Symbol'].astype(str).str.strip() != 'nan')])
-                        else:
-                            valid_count = 0
-                        st.metric("Valid Symbols", valid_count)
-                    with col3:
-                        st.metric("Data Completeness", f"{quality_report.get('completeness_score', 0):.1f}%")
-                    with col4:
-                        st.metric("Quality Score", f"{quality_report.get('overall_quality', 0):.1f}/10")
-                    
-                    # Show sample data
-                    with st.expander("📋 Sample Data Preview"):
-                        st.dataframe(current_data.head(), use_container_width=True)
+                            st.metric("Valid Symbols", valid_count)
+                        with col3:
+                            st.metric("Data Completeness", f"{quality_report.get('completeness_score', 0):.1f}%")
+                        with col4:
+                            st.metric("Quality Score", f"{quality_report.get('overall_quality', 0):.1f}/10")
+                        
+                        # Show sample data
+                        with st.expander("📋 Sample Data Preview"):
+                            st.dataframe(current_data.head(), use_container_width=True)
+                    else:
+                        missing_cols = [col for col in required_columns if col not in current_data.columns]
+                        st.error(f"The current data file is missing required columns: {', '.join(missing_cols)}. Found columns: {', '.join(current_data.columns)}")
                 else:
-                    st.error("Failed to process current data file. Please check the format.")
+                    st.error("Failed to process current data file. Please check the format (CSV/Excel) and column names.")
                     
         except Exception as e:
             st.error(f"Error processing current data: {str(e)}")
@@ -117,20 +159,43 @@ def data_upload_section():
                 previous_data, prev_quality_report = processor.process_daily_data(previous_file)
                 
                 if previous_data is not None:
-                    st.session_state.previous_data = previous_data
-                    st.success(f"✅ Previous data loaded successfully! ({len(previous_data)} stocks)")
-                    
-                    # Show sample data
-                    with st.expander("📋 Previous Data Preview"):
-                        st.dataframe(previous_data.head(), use_container_width=True)
+                    # Validate required columns
+                    required_columns = ['Symbol', 'Last Sale', 'Net Change', '% Change', 'Sector', 'Industry']
+                    if all(col in previous_data.columns for col in required_columns):
+                        # Clean and validate numeric columns
+                        numeric_cols = ['Last Sale', 'Net Change', '% Change']
+                        for col in numeric_cols:
+                            try:
+                                previous_data[col], original_col = clean_numeric_column(previous_data[col])
+                                if previous_data[col].isna().all():
+                                    st.error(f"Column '{col}' contains no valid numeric data after cleaning in previous data.")
+                                    st.write(f"Sample raw values in '{col}' (first 5 rows):")
+                                    st.write(original_col.head().tolist())
+                                    st.info("Please ensure the column contains numeric values (e.g., 100.50) without symbols like $, text like 'N/A', or empty cells. Check file encoding or column names.")
+                                    return
+                                if previous_data[col].isna().sum() > 0:
+                                    st.warning(f"Column '{col}' has {previous_data[col].isna().sum()} missing or invalid values, which may affect analysis.")
+                            except Exception as e:
+                                st.error(f"Error processing column '{col}' in previous data: {str(e)}")
+                                return
+                        
+                        st.session_state.previous_data = previous_data
+                        st.success(f"✅ Previous data loaded successfully! ({len(previous_data)} stocks)")
+                        
+                        # Show sample data
+                        with st.expander("📋 Previous Data Preview"):
+                            st.dataframe(previous_data.head(), use_container_width=True)
+                    else:
+                        missing_cols = [col for col in required_columns if col not in previous_data.columns]
+                        st.error(f"The previous data file is missing required columns: {', '.join(missing_cols)}. Found columns: {', '.join(previous_data.columns)}")
                 else:
-                    st.error("Failed to process previous data file. Please check the format.")
+                    st.error("Failed to process previous data file. Please check the format (CSV/Excel) and column names.")
                     
         except Exception as e:
             st.error(f"Error processing previous data: {str(e)}")
     
     # Process Button - Show when both files are uploaded
-    if ('current_data' in st.session_state and 'previous_data' in st.session_state):
+    if st.session_state.current_data is not None and st.session_state.previous_data is not None:
         st.success("🎉 Both datasets are ready for analysis!")
         
         col1, col2, col3 = st.columns([1, 2, 1])
@@ -240,10 +305,26 @@ def phase1_comparative_analysis_section():
         # Initialize comparative analysis
         with st.spinner("Performing comparative analysis..."):
             comp_analysis = ComparativeAnalysis(st.session_state.current_data, st.session_state.previous_data)
+            st.session_state.comparative_analysis = comp_analysis
             merged_data = comp_analysis.merged_data if hasattr(comp_analysis, 'merged_data') else pd.DataFrame()
             
             if merged_data is None or merged_data.empty:
-                st.error("No matching stocks found between current and previous data. Please check Symbol columns.")
+                st.error("No matching stocks found between current and previous data. Please check Symbol columns for consistency.")
+                return
+            
+            # Validate merged data
+            required_cols = ['Last Sale_curr', 'Last Sale_prev', '% Change_calc', 'Profit/Loss']
+            missing_cols = [col for col in required_cols if col not in merged_data.columns]
+            if missing_cols:
+                st.error(f"Missing required columns in merged data: {', '.join(missing_cols)}")
+                return
+            
+            # Check for valid numeric data
+            if merged_data['% Change_calc'].isna().all():
+                st.error("No valid price change data calculated. Possible issues with 'Last Sale' values.")
+                st.write("Sample of merged data for debugging:")
+                st.dataframe(merged_data[['Symbol', 'Last Sale_curr', 'Last Sale_prev', '% Change_calc']].head(), use_container_width=True)
+                st.info("Ensure 'Last Sale' columns contain valid numeric values (e.g., 100.50) in both files, without symbols or text.")
                 return
         
         # Performance Summary
@@ -267,19 +348,21 @@ def phase1_comparative_analysis_section():
             with col4:
                 losers = summary.get('losers', 0)
                 st.metric("Losers", losers, delta="negative" if losers > 0 else None)
+        else:
+            st.warning("No performance summary available.")
         
         # Top/Bottom Performers
         performers_col1, performers_col2 = st.columns(2)
         
         with performers_col1:
             st.subheader("🏆 Top 5 Performers")
-            if merged_data is not None and not merged_data.empty and 'Price_Change_Pct' in merged_data.columns:
-                valid_data = merged_data.dropna(subset=['Price_Change_Pct'])
+            if merged_data is not None and not merged_data.empty and '% Change_calc' in merged_data.columns:
+                valid_data = merged_data.dropna(subset=['% Change_calc'])
                 if not valid_data.empty:
-                    top_performers = valid_data.nlargest(5, 'Price_Change_Pct')
+                    top_performers = valid_data.nlargest(5, '% Change_calc')
                     for idx, row in top_performers.iterrows():
                         symbol = row.get('Symbol', 'N/A')
-                        change_pct = row.get('Price_Change_Pct', 0)
+                        change_pct = row.get('% Change_calc', 0)
                         st.success(f"🟢 **{symbol}**: {change_pct:.2f}%")
                 else:
                     st.info("No top performers data available")
@@ -288,13 +371,13 @@ def phase1_comparative_analysis_section():
         
         with performers_col2:
             st.subheader("📉 Bottom 5 Performers")
-            if merged_data is not None and not merged_data.empty and 'Price_Change_Pct' in merged_data.columns:
-                valid_data = merged_data.dropna(subset=['Price_Change_Pct'])
+            if merged_data is not None and not merged_data.empty and '% Change_calc' in merged_data.columns:
+                valid_data = merged_data.dropna(subset=['% Change_calc'])
                 if not valid_data.empty:
-                    bottom_performers = valid_data.nsmallest(5, 'Price_Change_Pct')
+                    bottom_performers = valid_data.nsmallest(5, '% Change_calc')
                     for idx, row in bottom_performers.iterrows():
                         symbol = row.get('Symbol', 'N/A')
-                        change_pct = row.get('Price_Change_Pct', 0)
+                        change_pct = row.get('% Change_calc', 0)
                         st.error(f"🔴 **{symbol}**: {change_pct:.2f}%")
                 else:
                     st.info("No bottom performers data available")
@@ -307,13 +390,14 @@ def phase1_comparative_analysis_section():
             dashboard_fig = comp_analysis.create_performance_dashboard()
             if dashboard_fig and hasattr(dashboard_fig, 'data') and dashboard_fig.data:
                 st.plotly_chart(dashboard_fig, use_container_width=True)
-        except:
-            st.info("Advanced dashboard temporarily unavailable. Analysis continues below.")
+            else:
+                st.info("Performance dashboard not available due to insufficient data.")
+        except Exception as e:
+            st.info(f"Advanced dashboard temporarily unavailable: {str(e)}")
         
         # Professional Risk Assessment Dashboard
         st.subheader("🎯 Professional Risk Assessment")
         
-        # Add comprehensive explanation
         with st.expander("📚 How to Read Risk Assessment Gauges", expanded=False):
             st.markdown("""
             **Professional Risk Gauges:** These voltage meter-style visualizations provide instant insights into your portfolio's risk profile.
@@ -334,13 +418,12 @@ def phase1_comparative_analysis_section():
         
         risk_gauge = RiskGauge()
         
-        # Calculate risk metrics from merged data
         try:
-            if merged_data is not None and len(merged_data) > 1 and 'Price_Change_Pct' in merged_data.columns:
-                price_volatility = float(merged_data['Price_Change_Pct'].std())
-                avg_performance = float(merged_data['Price_Change_Pct'].mean())
-                max_gain = float(merged_data['Price_Change_Pct'].max())
-                max_loss = float(merged_data['Price_Change_Pct'].min())
+            if merged_data is not None and len(merged_data) > 1 and '% Change_calc' in merged_data.columns:
+                price_volatility = float(merged_data['% Change_calc'].std())
+                avg_performance = float(merged_data['% Change_calc'].mean())
+                max_gain = float(merged_data['% Change_calc'].max())
+                max_loss = float(merged_data['% Change_calc'].min())
                 
                 risk_data = {
                     'risk_score': min(100, max(0, price_volatility * 3)),
@@ -350,7 +433,6 @@ def phase1_comparative_analysis_section():
                     'liquidity': min(100, max(20, 80 - abs(max_loss)))
                 }
                 
-                # Risk gauge row
                 gauge_col1, gauge_col2, gauge_col3 = st.columns(3)
                 
                 with gauge_col1:
@@ -364,21 +446,20 @@ def phase1_comparative_analysis_section():
                 with gauge_col3:
                     perf_fig = risk_gauge.create_performance_gauge(avg_performance)
                     st.plotly_chart(perf_fig, use_container_width=True)
+            else:
+                st.info("Risk assessment not available due to insufficient data.")
         except Exception as e:
-            st.info("Risk assessment calculations temporarily unavailable.")
+            st.info(f"Risk assessment calculations temporarily unavailable: {str(e)}")
         
         # Enhanced Stock Analysis with Filtering
         st.subheader("📊 Detailed Stock Analysis")
         
-        # Get all stocks data
         all_stocks_df = merged_data.copy()
         
-        if not all_stocks_df.empty and 'Price_Change_Pct' in all_stocks_df.columns:
-            # Remove NaN values for filtering
-            valid_data = all_stocks_df[all_stocks_df['Price_Change_Pct'].notna()].copy()
+        if not all_stocks_df.empty and '% Change_calc' in all_stocks_df.columns:
+            valid_data = all_stocks_df[all_stocks_df['% Change_calc'].notna()].copy()
             
             if not valid_data.empty:
-                # Filter controls
                 filter_col1, filter_col2, filter_col3 = st.columns(3)
                 
                 with filter_col1:
@@ -391,91 +472,73 @@ def phase1_comparative_analysis_section():
                 with filter_col2:
                     min_change = st.number_input(
                         "Min Change %",
-                        value=float(valid_data['Price_Change_Pct'].min()),
+                        value=float(valid_data['% Change_calc'].min()),
                         help="Minimum price change percentage"
                     )
                 
                 with filter_col3:
                     max_change = st.number_input(
                         "Max Change %", 
-                        value=float(valid_data['Price_Change_Pct'].max()),
+                        value=float(valid_data['% Change_calc'].max()),
                         help="Maximum price change percentage"
                     )
                 
-                # Apply filters
                 filtered_df = valid_data[
-                    (valid_data['Price_Change_Pct'] >= min_change) & 
-                    (valid_data['Price_Change_Pct'] <= max_change)
+                    (valid_data['% Change_calc'] >= min_change) & 
+                    (valid_data['% Change_calc'] <= max_change)
                 ].copy()
                 
                 if performance_filter == "Gainers Only":
-                    filtered_df = filtered_df[filtered_df['Price_Change_Pct'] > 0]
+                    filtered_df = filtered_df[filtered_df['% Change_calc'] > 0]
                 elif performance_filter == "Losers Only":
-                    filtered_df = filtered_df[filtered_df['Price_Change_Pct'] < 0]
+                    filtered_df = filtered_df[filtered_df['% Change_calc'] < 0]
                 elif performance_filter == "Top 10 Performers":
-                    if len(filtered_df) > 0 and 'Price_Change_Pct' in filtered_df.columns:
-                        filtered_df = filtered_df.nlargest(10, 'Price_Change_Pct')
+                    if len(filtered_df) > 0 and '% Change_calc' in filtered_df.columns:
+                        filtered_df = filtered_df.nlargest(10, '% Change_calc')
                 elif performance_filter == "Bottom 10 Performers":
-                    if len(filtered_df) > 0 and 'Price_Change_Pct' in filtered_df.columns:
-                        filtered_df = filtered_df.nsmallest(10, 'Price_Change_Pct')
+                    if len(filtered_df) > 0 and '% Change_calc' in filtered_df.columns:
+                        filtered_df = filtered_df.nsmallest(10, '% Change_calc')
                 
-                # Sort by performance
-                if isinstance(filtered_df, pd.DataFrame) and not filtered_df.empty and 'Price_Change_Pct' in filtered_df.columns:
-                    filtered_df = filtered_df.sort_values('Price_Change_Pct', ascending=False)
+                if isinstance(filtered_df, pd.DataFrame) and not filtered_df.empty and '% Change_calc' in filtered_df.columns:
+                    filtered_df = filtered_df.sort_values('% Change_calc', ascending=False)
                 
-                # Display metrics
                 metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
                 
                 with metrics_col1:
                     st.metric("Filtered Stocks", len(filtered_df))
                 with metrics_col2:
-                    gainers = len(filtered_df[filtered_df['Price_Change_Pct'] > 0]) if not filtered_df.empty else 0
+                    gainers = len(filtered_df[filtered_df['% Change_calc'] > 0]) if not filtered_df.empty else 0
                     st.metric("Gainers", gainers, delta="positive" if gainers > 0 else None)
                 with metrics_col3:
-                    losers = len(filtered_df[filtered_df['Price_Change_Pct'] < 0]) if not filtered_df.empty else 0
+                    losers = len(filtered_df[filtered_df['% Change_calc'] < 0]) if not filtered_df.empty else 0
                     st.metric("Losers", losers, delta="negative" if losers > 0 else None)
                 with metrics_col4:
-                    avg_change = filtered_df['Price_Change_Pct'].mean() if not filtered_df.empty else 0
+                    avg_change = filtered_df['% Change_calc'].mean() if not filtered_df.empty else 0
                     st.metric("Avg Change", f"{avg_change:.2f}%", delta=f"{avg_change:.2f}%")
                 
-                # Display filtered results
                 if not filtered_df.empty:
-                    # Find price columns dynamically
-                    price_current_col = None
-                    price_previous_col = None
+                    display_columns = ['Symbol', '% Change_calc', 'Profit/Loss']
                     
                     for col in filtered_df.columns:
-                        if 'Last Sale_current' in col or 'Price_current' in col:
-                            price_current_col = col
-                        elif 'Last Sale_previous' in col or 'Price_previous' in col:
-                            price_previous_col = col
-                    
-                    # Prepare display columns with available ones
-                    display_columns = ['Symbol', 'Price_Change_Pct', 'Profit_Loss']
-                    
-                    # Add name column if available
-                    for col in filtered_df.columns:
-                        if 'Name_current' in col or 'Company_current' in col:
+                        if 'Name_curr' in col or 'Company_curr' in col:
                             display_columns.insert(1, col)
                             break
                     
-                    # Add price columns if available
-                    if price_current_col:
+                    price_current_col = 'Last Sale_curr'
+                    price_previous_col = 'Last Sale_prev'
+                    if price_current_col in filtered_df.columns:
                         display_columns.append(price_current_col)
-                    if price_previous_col:
+                    if price_previous_col in filtered_df.columns:
                         display_columns.append(price_previous_col)
                     
-                    # Add volume and market cap if available
                     for col in filtered_df.columns:
-                        if 'Volume_current' in col:
+                        if 'Volume_curr' in col:
                             display_columns.append(col)
-                        elif 'Market Cap_current' in col:
+                        elif 'Market Cap_curr' in col:
                             display_columns.append(col)
                     
-                    # Filter to only available columns
                     available_columns = [col for col in display_columns if col in filtered_df.columns]
                     
-                    # Round numeric columns
                     display_data = filtered_df[available_columns].copy()
                     for col in display_data.columns:
                         if display_data[col].dtype in ['float64', 'int64']:
@@ -487,7 +550,6 @@ def phase1_comparative_analysis_section():
                         height=400
                     )
                     
-                    # Download filtered data
                     csv = filtered_df.to_csv(index=False)
                     st.download_button(
                         label="📥 Download Filtered Data",
@@ -518,7 +580,7 @@ def phase1_comparative_analysis_section():
         else:
             st.info("Industry analysis not available - missing industry data")
         
-        # Outlier Detection - Moved to expandable section
+        # Outlier Detection
         with st.expander("🎯 Outlier Detection", expanded=False):
             outliers = comp_analysis.detect_outliers()
             
@@ -529,7 +591,7 @@ def phase1_comparative_analysis_section():
                     st.write("**🚀 Extreme Gainers**")
                     if outliers.get('extreme_gainers'):
                         for stock in outliers['extreme_gainers']:
-                            st.success(f"• {stock['Symbol']}: {stock['Price_Change_Pct']:.2f}%")
+                            st.success(f"• {stock['Symbol']}: {stock['% Change_calc']:.2f}%")
                     else:
                         st.info("No extreme gainers detected")
                 
@@ -537,7 +599,7 @@ def phase1_comparative_analysis_section():
                     st.write("**📉 Extreme Losers**")
                     if outliers.get('extreme_losers'):
                         for stock in outliers['extreme_losers']:
-                            st.error(f"• {stock['Symbol']}: {stock['Price_Change_Pct']:.2f}%")
+                            st.error(f"• {stock['Symbol']}: {stock['% Change_calc']:.2f}%")
                     else:
                         st.info("No extreme losers detected")
         
@@ -557,16 +619,15 @@ def phase1_comparative_analysis_section():
             
     except Exception as e:
         st.error(f"Error in Phase 1 analysis: {str(e)}")
+        st.write("For debugging, check the sample merged data above or verify input file formats.")
 
 def phase2_deep_analysis_section():
     """Enhanced Phase 2: Deep analysis with custom date ranges and yfinance integration."""
     st.header("📈 Phase 2: Deep Stock Analysis")
     st.markdown("Comprehensive technical analysis with custom date ranges and yfinance integration")
     
-    # Stock selection from uploaded data
     available_stocks = []
     
-    # Get stocks from current and previous data
     if st.session_state.current_data is not None and 'Symbol' in st.session_state.current_data.columns:
         available_stocks.extend(st.session_state.current_data['Symbol'].dropna().unique().tolist())
     
@@ -578,19 +639,17 @@ def phase2_deep_analysis_section():
         st.warning("⚠️ Please upload stock data in the Data Upload tab first.")
         return
     
-    # Enhanced stock selector with smart suggestions
     col1, col2 = st.columns(2)
     
     with col1:
         st.subheader("🎯 Stock Selection")
         
-        # Auto-suggest top performers if Phase 1 analysis exists
         suggestions = []
         if st.session_state.comparative_analysis is not None:
             try:
                 comp_data = st.session_state.comparative_analysis.merged_data
-                if 'Price_Change_Pct' in comp_data.columns:
-                    top_performers = comp_data.nlargest(3, 'Price_Change_Pct')['Symbol'].tolist()
+                if '% Change_calc' in comp_data.columns:
+                    top_performers = comp_data.nlargest(3, '% Change_calc')['Symbol'].tolist()
                     suggestions = [f"🏆 {stock} (Top Performer)" for stock in top_performers]
             except:
                 pass
@@ -623,8 +682,6 @@ def phase2_deep_analysis_section():
             )
             start_date, end_date = None, None
         else:
-            from datetime import datetime, timedelta
-            
             col_start, col_end = st.columns(2)
             with col_start:
                 start_date = st.date_input(
@@ -643,13 +700,11 @@ def phase2_deep_analysis_section():
     if selected_stock:
         st.markdown("---")
         
-        # Fetch yfinance data button
         if st.button("🔄 Fetch & Analyze Data", type="primary", use_container_width=True):
             try:
                 with st.spinner(f"Fetching comprehensive data for {selected_stock}..."):
                     ticker = yf.Ticker(selected_stock)
                     
-                    # Fetch data based on selection
                     if analysis_period:
                         hist_data = ticker.history(period=analysis_period)
                     else:
@@ -659,11 +714,9 @@ def phase2_deep_analysis_section():
                         st.error(f"No data available for {selected_stock} from yfinance for the selected period")
                         return
                     
-                    # Store in session state
                     st.session_state.yfinance_data = hist_data
                     st.session_state.selected_symbol = selected_stock
                     
-                    # Get company info
                     try:
                         info = ticker.info
                         company_name = info.get('longName', selected_stock)
@@ -676,11 +729,9 @@ def phase2_deep_analysis_section():
                         industry = 'Unknown'
                         market_cap = 'Unknown'
                 
-                # Display fetched data
                 if st.session_state.yfinance_data is not None and not st.session_state.yfinance_data.empty:
                     hist_data = st.session_state.yfinance_data
                     
-                    # Company Overview Card
                     start_date = pd.to_datetime(hist_data.index[0]).strftime('%Y-%m-%d')
                     end_date = pd.to_datetime(hist_data.index[-1]).strftime('%Y-%m-%d')
                     
@@ -691,7 +742,6 @@ def phase2_deep_analysis_section():
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # Key Metrics
                     col1, col2, col3, col4, col5 = st.columns(5)
                     
                     with col1:
@@ -721,53 +771,41 @@ def phase2_deep_analysis_section():
                         else:
                             st.metric("Market Cap", str(market_cap))
                     
-                    # Prepare data for analysis
                     hist_data_clean = hist_data.copy().reset_index()
                     
-                    # Handle missing Adj Close gracefully
                     if 'Adj Close' not in hist_data_clean.columns:
                         hist_data_clean['Adj Close'] = hist_data_clean['Close']
                         st.info("ℹ️ Using Close price for analysis (Adj Close not available)")
                     
-                    # Add missing columns with defaults
                     for col in ['Dividends', 'Stock Splits']:
                         if col not in hist_data_clean.columns:
                             hist_data_clean[col] = 0
                     
-                    # Rename Date to Datetime for consistency
                     if 'Date' in hist_data_clean.columns:
                         hist_data_clean = hist_data_clean.rename(columns={'Date': 'Datetime'})
                     
-                    # Advanced Visualizations
                     st.subheader("📊 Advanced Price Visualizations")
                     
-                    # Create enhanced visualizations
                     if len(hist_data_clean) > 0:
                         viz = Visualizations(historical_data=hist_data_clean)
                         
-                        # Candlestick chart
                         candlestick_fig = viz.create_candlestick_chart()
                         st.plotly_chart(candlestick_fig, use_container_width=True, key="phase2_candlestick")
                         
-                        # Price trends
                         price_trends_fig = viz.create_price_trends_chart()
                         st.plotly_chart(price_trends_fig, use_container_width=True, key="phase2_price_trends")
                         
-                        # Volume analysis
                         volume_fig = viz.create_volume_chart()
                         st.plotly_chart(volume_fig, use_container_width=True, key="phase2_volume")
                     
-                    # Technical Analysis
                     if len(hist_data_clean) > 50:
                         st.subheader("⚙️ Technical Indicators Dashboard")
                         
                         tech_indicators = TechnicalIndicators(hist_data_clean)
                         
-                        # Moving Averages
                         ma_chart = tech_indicators.create_moving_averages_chart()
                         st.plotly_chart(ma_chart, use_container_width=True, key="phase2_ma_chart")
                         
-                        # Technical indicators in columns
                         tech_col1, tech_col2 = st.columns(2)
                         
                         with tech_col1:
@@ -778,22 +816,18 @@ def phase2_deep_analysis_section():
                             macd_chart = tech_indicators.create_macd_chart()
                             st.plotly_chart(macd_chart, use_container_width=True, key="phase2_macd_chart")
                         
-                        # Bollinger Bands
                         bb_chart = tech_indicators.create_bollinger_bands_chart()
                         st.plotly_chart(bb_chart, use_container_width=True, key="phase2_bb_chart")
                         
-                        # Trading Signals Dashboard
                         st.subheader("🎯 Trading Signals & Recommendations")
                         signals = tech_indicators.get_trading_signals()
                         
-                        # Create signal cards
                         signal_cols = st.columns(min(len(signals), 4))
                         for i, (indicator, signal_data) in enumerate(signals.items()):
                             with signal_cols[i % len(signal_cols)]:
                                 signal_value = signal_data.get('signal', 'Unknown')
                                 signal_strength = signal_data.get('strength', 'Unknown')
                                 
-                                # Enhanced signal display
                                 if 'buy' in signal_value.lower():
                                     st.markdown(f"""
                                     <div class="success-card">
@@ -819,7 +853,6 @@ def phase2_deep_analysis_section():
                                     </div>
                                     """, unsafe_allow_html=True)
                     
-                    # Performance Metrics
                     st.subheader("📈 Performance Metrics")
                     
                     if len(hist_data) > 20:
@@ -852,7 +885,6 @@ def phase2_deep_analysis_section():
                             avg_volume = hist_data['Volume'].mean()
                             st.metric("Avg Volume", f"{avg_volume:,.0f}")
                     
-                    # Phase 1 Integration
                     if st.session_state.comparative_analysis is not None:
                         st.subheader("🔄 Phase 1 Integration")
                         
@@ -865,17 +897,17 @@ def phase2_deep_analysis_section():
                             comp_col1, comp_col2, comp_col3 = st.columns(3)
                             
                             with comp_col1:
-                                if 'Price_Change_Pct' in stock_row:
-                                    st.metric("Period Change (Phase 1)", f"{stock_row['Price_Change_Pct']:.2f}%")
+                                if '% Change_calc' in stock_row:
+                                    st.metric("Period Change (Phase 1)", f"{stock_row['% Change_calc']:.2f}%")
                             
                             with comp_col2:
-                                if 'Sector_current' in stock_row:
-                                    sector_avg = comp_data[comp_data['Sector_current'] == stock_row['Sector_current']]['Price_Change_Pct'].mean()
+                                if 'Sector_curr' in stock_row:
+                                    sector_avg = comp_data[comp_data['Sector_curr'] == stock_row['Sector_curr']]['% Change_calc'].mean()
                                     st.metric("Sector Average", f"{sector_avg:.2f}%")
                             
                             with comp_col3:
-                                if 'Industry_current' in stock_row:
-                                    industry_avg = comp_data[comp_data['Industry_current'] == stock_row['Industry_current']]['Price_Change_Pct'].mean()
+                                if 'Industry_curr' in stock_row:
+                                    industry_avg = comp_data[comp_data['Industry_curr'] == stock_row['Industry_curr']]['% Change_calc'].mean()
                                     st.metric("Industry Average", f"{industry_avg:.2f}%")
                         else:
                             st.info("Stock not found in Phase 1 comparative analysis data")
@@ -893,32 +925,26 @@ def advanced_analytics_section():
         st.warning("⚠️ Please upload historical data or fetch yfinance data in Phase 2 first.")
         return
     
-    # Use yfinance data if available, otherwise historical data
     data_source = st.session_state.yfinance_data if st.session_state.yfinance_data is not None else st.session_state.historical_data
     
     if data_source is None or data_source.empty:
         st.error("No historical data available for analysis.")
         return
     
-    # Prepare data
     data_clean = data_source.copy()
     if hasattr(data_clean, 'reset_index'):
         data_clean = data_clean.reset_index()
     
-    # Handle missing Adj Close
     if 'Adj Close' not in data_clean.columns:
         data_clean['Adj Close'] = data_clean['Close']
     
-    # Add missing columns
     for col in ['Dividends', 'Stock Splits']:
         if col not in data_clean.columns:
-            data_clean[col] = 0
+        data_clean[col] = 0
     
-    # Rename Date to Datetime
     if 'Date' in data_clean.columns:
         data_clean = data_clean.rename(columns={'Date': 'Datetime'})
     
-    # Create tabs for different analytics
     pred_tab, viz_tab, insights_tab = st.tabs(["🔮 Price Predictions", "📊 Advanced Visualizations", "💡 Trading Insights"])
     
     with pred_tab:
@@ -927,7 +953,6 @@ def advanced_analytics_section():
         if len(data_clean) > 50:
             predictions = PricePredictions(data_clean)
             
-            # Prediction controls
             col1, col2 = st.columns(2)
             
             with col1:
@@ -949,17 +974,11 @@ def advanced_analytics_section():
                     pred_prices = predictions.predict_prices(pred_days, pred_method)
                     
                     if pred_prices:
-                        # Create prediction chart
                         pred_chart = predictions.create_prediction_chart(pred_prices, pred_days)
                         st.plotly_chart(pred_chart, use_container_width=True, key="predictions_chart")
                         
-                        # Prediction metrics
-                        confidence = predictions.calculate_prediction_confidence()
-                        
-                        # Display predicted prices in a table
                         st.subheader("📈 Predicted Prices")
                         
-                        from datetime import datetime, timedelta
                         current_date = datetime.now()
                         pred_dates = [current_date + timedelta(days=i+1) for i in range(pred_days)]
                         
@@ -983,13 +1002,13 @@ def advanced_analytics_section():
                             st.metric("Target Price", f"${predicted_final:.2f}")
                         
                         with col3:
+                            confidence = predictions.calculate_prediction_confidence()
                             st.metric("Confidence Score", f"{confidence.get('score', 0):.1f}/10")
                         
                         with col4:
                             volatility = confidence.get('volatility', 0)
                             st.metric("Prediction Volatility", f"{volatility:.2f}%")
                         
-                        # Disclaimer
                         st.info(predictions.get_prediction_disclaimer())
                     else:
                         st.error("Unable to generate predictions. Please try a different method.")
@@ -999,7 +1018,6 @@ def advanced_analytics_section():
     with viz_tab:
         st.subheader("📊 Advanced Visualizations")
         
-        # Add comprehensive explanation for 3D Factor Analysis
         with st.expander("📚 Understanding 3D Factor Analysis", expanded=False):
             st.markdown("""
             **3D Factor Analysis** is an advanced visualization technique that simultaneously displays three critical financial dimensions:
@@ -1031,10 +1049,8 @@ def advanced_analytics_section():
             """)
         
         if len(data_clean) > 0:
-            # Initialize visualizations
             viz = Visualizations(historical_data=data_clean)
             
-            # Create visualization options
             viz_option = st.selectbox(
                 "Select Visualization",
                 ["Candlestick Chart", "Price Trends", "Volume Analysis", "Market Overview Dashboard", "3D Factor Analysis"]
@@ -1056,21 +1072,17 @@ def advanced_analytics_section():
                 st.markdown("**🌐 3D Factor Analysis**")
                 st.info("This advanced visualization shows the relationship between Risk, Return, and Market Correlation in a 3D space.")
                 
-                # Create 3D factor analysis
                 risk_gauge = RiskGauge()
                 
                 if len(data_clean) > 20:
-                    # Calculate metrics for 3D analysis
                     returns = data_clean['Close'].pct_change().dropna()
                     volatility = returns.std() * 100
                     total_return = ((data_clean['Close'].iloc[-1] / data_clean['Close'].iloc[0]) - 1) * 100
                     
-                    # Create sample data for 3D surface
                     risk_levels = np.linspace(0, 100, 20)
                     return_levels = np.linspace(-50, 150, 20)
                     X, Y = np.meshgrid(risk_levels, return_levels)
                     
-                    # Generate Z values based on a performance function
                     Z = 100 * np.exp(-((X-volatility)**2 + (Y-total_return)**2) / 2000)
                     
                     fig = go.Figure(data=[go.Surface(
@@ -1093,7 +1105,6 @@ def advanced_analytics_section():
                     
                     st.plotly_chart(fig, use_container_width=True)
                     
-                    # Add current stock position indicator
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         st.metric("Current Risk Level", f"{volatility:.1f}%")
@@ -1106,16 +1117,13 @@ def advanced_analytics_section():
                     st.warning("Need more data points for 3D analysis (minimum 20 days)")
             
             elif viz_option == "Market Overview Dashboard":
-                # Create professional risk analysis dashboard
                 risk_gauge = RiskGauge()
                 
-                # Calculate risk metrics from historical data
                 if len(data_clean) > 1:
                     price_volatility = data_clean['Close'].pct_change().std() * 100
                     volume_volatility = data_clean['Volume'].pct_change().std() * 100 if 'Volume' in data_clean.columns else 30
                     price_trend = (data_clean['Close'].iloc[-1] / data_clean['Close'].iloc[0] - 1) * 100
                     
-                    # Create risk metrics
                     risk_data = {
                         'risk_score': min(100, max(0, price_volatility * 2)),
                         'volatility': min(100, price_volatility),
@@ -1124,10 +1132,8 @@ def advanced_analytics_section():
                         'liquidity': min(100, max(20, 100 - volume_volatility))
                     }
                     
-                    # Professional Risk Dashboard
                     st.subheader("🎯 Professional Risk Assessment Dashboard")
                     
-                    # Risk gauge row
                     gauge_col1, gauge_col2, gauge_col3 = st.columns(3)
                     
                     with gauge_col1:
@@ -1142,17 +1148,14 @@ def advanced_analytics_section():
                         perf_fig = risk_gauge.create_performance_gauge(price_trend)
                         st.plotly_chart(perf_fig, use_container_width=True, key="performance_gauge")
                     
-                    # Advanced Multi-Gauge Dashboard
                     st.subheader("📊 Advanced Multi-Metric Dashboard")
                     advanced_fig = risk_gauge.create_advanced_dashboard(risk_data)
                     st.plotly_chart(advanced_fig, use_container_width=True, key="advanced_dashboard")
                     
-                    # 3D Risk Surface Analysis
                     st.subheader("🌐 3D Risk Surface Analysis")
                     surface_fig = risk_gauge.create_3d_surface_plot(data_clean)
                     st.plotly_chart(surface_fig, use_container_width=True, key="3d_surface")
                     
-                    # 3D Factor Graph Explanation
                     with st.expander("📚 How to Read the 3D Factor Graph - Real Example", expanded=False):
                         st.markdown("""
                         ### Understanding the 3D Risk Surface
@@ -1186,7 +1189,6 @@ def advanced_analytics_section():
                         - Waiting for movement to green/yellow zones
                         """)
                         
-                        # Current stock position explanation
                         current_vol = price_volatility
                         current_risk = risk_data['risk_score']
                         
@@ -1202,12 +1204,10 @@ def advanced_analytics_section():
                         
                         st.info(f"**Current Stock Position:** {risk_zone} - {advice}")
                     
-                    # Advanced Correlation Heatmap
                     st.subheader("🔥 Advanced Correlation Matrix")
                     heatmap_fig = risk_gauge.create_heatmap_correlation(data_clean)
                     st.plotly_chart(heatmap_fig, use_container_width=True, key="correlation_heatmap")
                     
-                    # Professional Candlestick with Technical Analysis
                     if 'Date' not in data_clean.columns:
                         data_clean = data_clean.reset_index()
                         if 'Date' not in data_clean.columns:
@@ -1219,262 +1219,116 @@ def advanced_analytics_section():
                 else:
                     st.warning("Insufficient data for advanced risk analysis")
             
-            # Daily data visualizations if available
             if st.session_state.current_data is not None:
                 st.subheader("📈 Market Analysis Visualizations")
                 
                 daily_viz = Visualizations(daily_data=st.session_state.current_data)
                 
-                viz_col1, viz_col2 = st.columns(2)
-                
-                with viz_col1:
-                    market_cap_fig = daily_viz.create_market_cap_chart()
-                    st.plotly_chart(market_cap_fig, use_container_width=True, key="advanced_market_cap")
-                
-                with viz_col2:
-                    sector_fig = daily_viz.create_sector_pie_chart()
-                    st.plotly_chart(sector_fig, use_container_width=True, key="advanced_sector_pie")
-                
-                # Correlation heatmap
-                corr_fig = daily_viz.create_correlation_heatmap()
-                st.plotly_chart(corr_fig, use_container_width=True, key="advanced_correlation")
-                
-                # Performance scatter
-                perf_fig = daily_viz.create_performance_volume_scatter()
-                st.plotly_chart(perf_fig, use_container_width=True, key="advanced_performance_scatter")
+                # Example market visualization: Sector performance bar chart
+                if 'Sector' in st.session_state.current_data.columns and 'Last Sale' in st.session_state.current_data.columns:
+                    sector_perf = st.session_state.current_data.groupby('Sector')['Last Sale'].mean().sort_values(ascending=False)
+                    fig = go.Figure(data=[
+                        go.Bar(
+                            x=sector_perf.index,
+                            y=sector_perf.values,
+                            name='Average Price by Sector',
+                            marker_color='lightgreen'
+                        )
+                    ])
+                    fig.update_layout(
+                        title='Sector Performance Overview',
+                        xaxis_title='Sector',
+                        yaxis_title='Average Price ($)',
+                        height=500
+                    )
+                    st.plotly_chart(fig, use_container_width=True, key="sector_performance")
+                else:
+                    st.warning("Sector or price data not available for market visualization")
     
     with insights_tab:
-        st.subheader("💡 Enhanced Trading Insights")
+        st.subheader("💡 Trading Insights")
         
         if len(data_clean) > 50:
-            # Technical Analysis
             tech_indicators = TechnicalIndicators(data_clean)
-            trading_signals = tech_indicators.get_trading_signals()
+            signals = tech_indicators.get_trading_signals()
             
-            # Analytics
-            analytics = Analytics(historical_data=data_clean)
-            
-            # Trading Signals Overview
-            st.subheader("🎯 Current Trading Signals")
-            
-            signal_summary = {"buy": 0, "sell": 0, "hold": 0}
-            
-            for indicator, signal_data in trading_signals.items():
-                signal = signal_data.get('signal', '').lower()
-                if 'buy' in signal:
-                    signal_summary["buy"] += 1
-                elif 'sell' in signal:
-                    signal_summary["sell"] += 1
-                else:
-                    signal_summary["hold"] += 1
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric("🟢 Buy Signals", signal_summary["buy"])
-            
-            with col2:
-                st.metric("🔴 Sell Signals", signal_summary["sell"])
-            
-            with col3:
-                st.metric("🟡 Hold/Neutral", signal_summary["hold"])
-            
-            # Detailed Signal Analysis
-            st.subheader("📋 Detailed Signal Analysis")
-            
-            for indicator, signal_data in trading_signals.items():
-                signal_value = signal_data.get('signal', 'Unknown')
-                strength = signal_data.get('strength', 'Unknown')
+            if signals:
+                st.markdown("### Trading Signals")
+                signal_cols = st.columns(min(len(signals), 4))
                 
-                with st.expander(f"{indicator} - {signal_value}"):
-                    st.write(f"**Current Signal:** {signal_value}")
-                    st.write(f"**Signal Strength:** {strength}")
-                    
-                    # Add specific recommendations based on indicator
-                    if indicator == "RSI":
-                        rsi_val = tech_indicators.calculate_rsi().iloc[-1] if len(tech_indicators.calculate_rsi()) > 0 else 0
-                        st.write(f"**Current RSI:** {rsi_val:.1f}")
-                        if rsi_val > 70:
-                            st.warning("Stock may be overbought - consider taking profits")
-                        elif rsi_val < 30:
-                            st.success("Stock may be oversold - potential buying opportunity")
-                    
-                    elif indicator == "MACD":
-                        st.write("Monitor MACD line crossovers for momentum changes")
-                    
-                    elif indicator == "Bollinger Bands":
-                        bb_position = tech_indicators.get_bollinger_position()
-                        st.write(f"**Current Position:** {bb_position}")
-            
-            # Trading Strategies
-            st.subheader("🎯 Strategy Recommendations")
-            
-            strategies = analytics.generate_trading_strategies(trading_signals)
-            
-            if strategies:
-                for i, strategy in enumerate(strategies):
-                    with st.expander(f"Strategy {i+1}: {strategy.get('name', 'Unknown')}"):
-                        st.write(f"**Type:** {strategy.get('type', 'N/A')}")
-                        st.write(f"**Risk Level:** {strategy.get('risk_level', 'N/A')}")
-                        st.write(f"**Time Horizon:** {strategy.get('time_horizon', 'N/A')}")
-                        st.write(f"**Description:** {strategy.get('description', 'N/A')}")
+                for i, (indicator, signal_data) in enumerate(signals.items()):
+                    with signal_cols[i % len(signal_cols)]:
+                        signal_value = signal_data.get('signal', 'Unknown')
+                        signal_strength = signal_data.get('strength', 'Unknown')
                         
-                        if 'entry_conditions' in strategy:
-                            st.write(f"**Entry Conditions:** {strategy['entry_conditions']}")
-                        if 'exit_conditions' in strategy:
-                            st.write(f"**Exit Conditions:** {strategy['exit_conditions']}")
-                        if 'risk_management' in strategy:
-                            st.write(f"**Risk Management:** {strategy['risk_management']}")
-            
-            # Risk Assessment
-            st.subheader("⚠️ Risk Assessment")
-            
-            risk_metrics = analytics.calculate_risk_metrics()
-            
-            risk_col1, risk_col2, risk_col3, risk_col4 = st.columns(4)
-            
-            with risk_col1:
-                st.metric("Beta (Market Risk)", f"{risk_metrics.get('beta', 'N/A')}")
-            
-            with risk_col2:
-                st.metric("Sharpe Ratio", f"{risk_metrics.get('sharpe_ratio', 'N/A')}")
-            
-            with risk_col3:
-                st.metric("Max Drawdown", f"{risk_metrics.get('max_drawdown', 'N/A')}%")
-            
-            with risk_col4:
-                st.metric("VaR (95%)", f"{risk_metrics.get('var_95', 'N/A')}%")
-            
-            # Market Patterns
-            st.subheader("📈 Market Patterns Analysis")
-            
-            patterns = analytics.analyze_patterns()
-            
-            pattern_col1, pattern_col2 = st.columns(2)
-            
-            with pattern_col1:
-                st.write("**Seasonal Patterns**")
-                if patterns.get('seasonal_patterns'):
-                    for pattern in patterns['seasonal_patterns']:
-                        st.write(f"• {pattern}")
-                else:
-                    st.write("No significant seasonal patterns detected.")
-            
-            with pattern_col2:
-                st.write("**Volume Patterns**")
-                if patterns.get('volume_patterns'):
-                    for pattern in patterns['volume_patterns']:
-                        st.write(f"• {pattern}")
-                else:
-                    st.write("No significant volume patterns detected.")
-            
-            # Overall Recommendation
-            st.subheader("🎯 Overall Trading Recommendation")
-            
-            buy_signals = signal_summary["buy"]
-            sell_signals = signal_summary["sell"]
-            
-            if buy_signals > sell_signals:
-                st.success(f"**BULLISH OUTLOOK** - {buy_signals} buy signals vs {sell_signals} sell signals")
-                st.write("Consider position accumulation or holding existing positions")
-            elif sell_signals > buy_signals:
-                st.error(f"**BEARISH OUTLOOK** - {sell_signals} sell signals vs {buy_signals} buy signals")
-                st.write("Consider reducing positions or implementing defensive strategies")
+                        if 'buy' in signal_value.lower():
+                            st.markdown(f"""
+                            <div class="success-card">
+                                <h4>{indicator}</h4>
+                                <p><strong>{signal_value}</strong></p>
+                                <p>Strength: {signal_strength}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        elif 'sell' in signal_value.lower():
+                            st.markdown(f"""
+                            <div class="warning-card">
+                                <h4>{indicator}</h4>
+                                <p><strong>{signal_value}</strong></p>
+                                <p>Strength: {signal_strength}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"""
+                            <div class="metric-card">
+                                <h4>{indicator}</h4>
+                                <p><strong>{signal_value}</strong></p>
+                                <p>Strength: {signal_strength}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
             else:
-                st.info(f"**NEUTRAL OUTLOOK** - Mixed signals ({buy_signals} buy, {sell_signals} sell)")
-                st.write("Wait for clearer directional signals before taking major positions")
-        
+                st.info("No trading signals available")
         else:
-            st.warning("Insufficient data for comprehensive trading insights")
+            st.warning("Insufficient data for trading insights (need >50 data points)")
 
+# Main App Layout
 def main():
-    # Custom CSS for beautiful UI
-    st.markdown("""
-    <style>
-    .main > div {
-        padding-top: 2rem;
-    }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 2px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 60px;
-        padding: 10px 20px;
-        background-color: #f0f2f6;
-        border-radius: 10px 10px 0px 0px;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #ffffff;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1rem;
-        border-radius: 10px;
-        color: white;
-        margin: 0.5rem 0;
-    }
-    .success-card {
-        background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-        padding: 1rem;
-        border-radius: 10px;
-        color: white;
-    }
-    .warning-card {
-        background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
-        padding: 1rem;
-        border-radius: 10px;
-        color: white;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    """Main application layout with navigation."""
+    st.sidebar.title("Premium Financial Analysis Dashboard")
+    st.sidebar.markdown("Navigate through the analysis phases below")
     
-    st.title("📈 Premium Financial Analysis Dashboard")
-    st.markdown("### Comprehensive Stock Trading Analysis with Advanced Technical Indicators & Predictions")
+    page = st.sidebar.radio(
+        "Select Analysis Phase",
+        ["Data Upload", "Phase 1: Comparative Analysis", "Phase 2: Deep Analysis", "Advanced Analytics"],
+        key="navigation"
+    )
     
-    # Create enhanced tabs
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📁 Data Upload", 
-        "📊 Phase 1: Comparative Analysis", 
-        "📈 Phase 2: Deep Stock Analysis",
-        "🔮 Advanced Analytics"
-    ])
+    # Clear Analysis Button
+    st.sidebar.markdown("---")
+    st.sidebar.button("🗑️ Clear Analysis", on_click=clear_session_state_callback, type="primary")
     
-    with tab1:
+    if page == "Data Upload":
         data_upload_section()
-    
-    with tab2:
+    elif page == "Phase 1: Comparative Analysis":
         phase1_comparative_analysis_section()
-    
-    with tab3:
+    elif page == "Phase 2: Deep Analysis":
         phase2_deep_analysis_section()
-    
-    with tab4:
+    elif page == "Advanced Analytics":
         advanced_analytics_section()
-# Clear Analysis Button
-if st.button("🗑️ Clear All Analysis", help="Reset all analysis data and uploaded files"):
-    try:
-        # Clear all session state keys except Streamlit's internal widget keys
-        for key in list(st.session_state.keys()):
-            if not key.startswith("file_uploader_"):  # Protect file_uploader widget keys
-                del st.session_state[key]
-
-        # Reinitialize essential session state keys
-        st.session_state['current_data'] = None
-        st.session_state['previous_data'] = None
-        st.session_state['comparative_analysis'] = None
-        st.session_state['data_quality_report'] = None
-        st.session_state['historical_data'] = None
-        st.session_state['selected_symbol'] = None
-        st.session_state['yfinance_data'] = None
-
-        # Increment upload_key to force file uploader reset (optional, may not be needed with static keys)
-        st.session_state['upload_key'] = st.session_state.get('upload_key', 0) + 1
-
-        st.success("✅ All analysis data and uploaded files cleared! Ready for new uploads.")
-        st.rerun()  # Refresh UI
-    except Exception as e:
-        st.error(f"Error clearing analysis: {str(e)}")
+    
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("""
+    **About this Dashboard**
+    - Built with Streamlit & Plotly
+    - Integrates yfinance for real-time data
+    - Comprehensive stock analysis
+    - Professional risk assessment
+    """)
+    
+    st.sidebar.markdown("""
+    **Support**
+    - Contact: support@financialanalysis.com
+    - Documentation: [View Docs](https://docs.financialanalysis.com)
+    """)
 
 if __name__ == "__main__":
     main()
