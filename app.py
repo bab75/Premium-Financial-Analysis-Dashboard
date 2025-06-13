@@ -1460,8 +1460,8 @@ if st.button("🗑️ Clear All Analysis", help="Reset all analysis data and upl
                 del st.session_state[key]
 
         # Reinitialize essential session state keys
-        st.session_state['current_data_file'] = None
-        st.session_state['previous_data_file'] = None
+        st.session_state['current_data'] = None
+        st.session_state['previous_data'] = None
         st.session_state['comparative_analysis'] = None
         st.session_state['data_quality_report'] = None
         st.session_state['historical_data'] = None
