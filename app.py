@@ -1473,7 +1473,7 @@ def main():
         st.rerun()  # Refresh UI
      except Exception as e:
         st.error(f"Error clearing analysis: {str(e)}")
-    if st.sidebar.button("Clear Filters"):
+    if st.button("Clearanalysis All"):
         st.session_state.filter_data = None
         st.session_state.selected_symbol = None
         st.session_state.current_page = 1      
