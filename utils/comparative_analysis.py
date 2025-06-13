@@ -36,6 +36,10 @@ class ComparativeAnalysis:
             st.write(f"Current data columns: {list(self.current_data.columns)}")
             st.write(f"Previous data columns: {list(self.previous_data.columns)}")
             
+            # Debug: Log raw Last Sale values
+            st.write(f"Raw Last Sale_current sample: {self.current_data['Last Sale'].head().tolist()}")
+            st.write(f"Raw Last Sale_previous sample: {self.previous_data['Last Sale'].head().tolist()}")
+            
             # Standardize symbol column names
             current_data_clean = self.current_data.copy()
             previous_data_clean = self.previous_data.copy()
@@ -68,9 +72,11 @@ class ComparativeAnalysis:
             merged['Last Sale_current'] = self._clean_numeric_column(merged['Last Sale_current'])
             merged['Last Sale_previous'] = self._clean_numeric_column(merged['Last Sale_previous'])
             
-            # Debug: Log sample Last Sale values
-            st.write(f"Sample Last Sale_current after cleaning: {merged['Last Sale_current'].head().tolist()}")
-            st.write(f"Sample Last Sale_previous after cleaning: {merged['Last Sale_previous'].head().tolist()}")
+            # Debug: Log cleaned Last Sale values and check for NaN/None
+            st.write(f"Cleaned Last Sale_current sample: {merged['Last Sale_current'].head().tolist()}")
+            st.write(f"Cleaned Last Sale_previous sample: {merged['Last Sale_previous'].head().tolist()}")
+            st.write(f"NaN in Last Sale_current: {merged['Last Sale_current'].isna().sum()}")
+            st.write(f"NaN in Last Sale_previous: {merged['Last Sale_previous'].isna().sum()}")
             
             # Calculate price changes
             merged['Price_Change'] = merged['Last Sale_current'] - merged['Last Sale_previous']
@@ -110,37 +116,39 @@ class ComparativeAnalysis:
     def _clean_numeric_column(self, series: pd.Series) -> pd.Series:
         """Clean and convert column to numeric values, handling currency symbols, commas, and percentages."""
         try:
-            # Debug: Log sample values being cleaned
-            st.write(f"Cleaning column: {series.name}, Sample values: {series.head().tolist()}")
+            # Debug: Log raw sample values
+            st.write(f"Cleaning column: {series.name}, Raw sample values: {series.head().tolist()}")
             
-            if series.dtype in ['object', 'string']:
-                # Convert to string and clean
-                cleaned = series.astype(str).str.strip()
-                
-                # Remove common non-numeric characters
-                cleaned = cleaned.str.replace('$', '', regex=False)
-                cleaned = cleaned.str.replace(',', '', regex=False)
-                cleaned = cleaned.str.replace('€', '', regex=False)
-                cleaned = cleaned.str.replace('£', '', regex=False)
-                cleaned = cleaned.str.replace('¥', '', regex=False)
-                cleaned = cleaned.str.replace('₹', '', regex=False)
-                cleaned = cleaned.str.replace('%', '', regex=False)  # Remove % for consistency
-                
-                # Log invalid values
-                invalid = cleaned[~cleaned.str.replace('-', '').str.replace('.', '').str.isnumeric()]
-                if not invalid.empty:
-                    st.warning(f"Invalid values in {series.name}: {invalid.head().tolist()}")
-                
-                # Convert to numeric, replacing invalid values with 0
-                cleaned = pd.to_numeric(cleaned, errors='coerce').fillna(0)
-                
-                return cleaned
-            else:
-                # For non-string columns, convert directly to numeric
-                return pd.to_numeric(series, errors='coerce').fillna(0)
+            # Convert to string, handle None and non-string types
+            cleaned = series.astype(str).str.strip()
+            
+            # Replace common non-numeric characters
+            cleaned = cleaned.str.replace('$', '', regex=False)
+            cleaned = cleaned.str.replace(',', '', regex=False)
+            cleaned = cleaned.str.replace('€', '', regex=False)
+            cleaned = cleaned.str.replace('£', '', regex=False)
+            cleaned = cleaned.str.replace('¥', '', regex=False)
+            cleaned = cleaned.str.replace('₹', '', regex=False)
+            cleaned = cleaned.str.replace('%', '', regex=False)
+            
+            # Replace empty strings or invalid entries
+            cleaned = cleaned.replace('', '0').replace('None', '0').replace('nan', '0')
+            
+            # Log invalid values
+            invalid = cleaned[~cleaned.str.replace('-', '').str.replace('.', '').str.isnumeric()]
+            if not invalid.empty:
+                st.warning(f"Invalid values in {series.name}: {invalid.head().tolist()}")
+            
+            # Convert to numeric
+            cleaned = pd.to_numeric(cleaned, errors='coerce').fillna(0)
+            
+            # Debug: Log cleaned sample values
+            st.write(f"Cleaned sample values for {series.name}: {cleaned.head().tolist()}")
+            
+            return cleaned
         except Exception as e:
             st.error(f"Error cleaning numeric column: {str(e)}")
-            return pd.to_numeric(series, errors='coerce').fillna(0)
+            return pd.to_numeric(series.astype(str), errors='coerce').fillna(0)
     
     def get_performance_summary(self) -> Dict:
         """Generate comprehensive performance summary."""
@@ -148,7 +156,6 @@ class ComparativeAnalysis:
             return {}
         
         try:
-            # Price metrics analysis
             if 'Price_Change_Pct' in self.merged_data.columns:
                 price_changes = self.merged_data['Price_Change_Pct'].dropna()
                 if not price_changes.empty:
@@ -311,12 +318,16 @@ class ComparativeAnalysis:
                 std_change = price_changes.std()
                 
                 extreme_threshold = 3
-                extreme_positive = self.merged_data[
-                    self.merged_data['Price_Change_Pct'] > (mean_change + extreme_threshold * std_change)
+                # Ensure NaN is replaced with 0 for Last Sale_current
+                outlier_data = self.merged_data.copy()
+                outlier_data['Last Sale_current'] = outlier_data['Last Sale_current'].fillna(0)
+                
+                extreme_positive = outlier_data[
+                    outlier_data['Price_Change_Pct'] > (mean_change + extreme_threshold * std_change)
                 ][['Symbol', 'Name_current', 'Price_Change_Pct', 'Last Sale_current']].to_dict('records')
                 
-                extreme_negative = self.merged_data[
-                    self.merged_data['Price_Change_Pct'] < (mean_change - extreme_threshold * std_change)
+                extreme_negative = outlier_data[
+                    outlier_data['Price_Change_Pct'] < (mean_change - extreme_threshold * std_change)
                 ][['Symbol', 'Name_current', 'Price_Change_Pct', 'Last Sale_current']].to_dict('records')
                 
                 outliers['extreme_gainers'] = extreme_positive
