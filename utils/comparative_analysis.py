@@ -29,6 +29,10 @@ class ComparativeAnalysis:
             symbol_col_current = self._find_symbol_column(self.current_data)
             symbol_col_previous = self._find_symbol_column(self.previous_data)
             
+            # Debug: Log input DataFrame columns
+            st.write(f"Current data columns: {list(self.current_data.columns)}")
+            st.write(f"Previous data columns: {list(self.previous_data.columns)}")
+            
             if not symbol_col_current or not symbol_col_previous:
                 st.error(f"Symbol column not found. Please ensure your data has a column named Symbol, Ticker, or similar")
                 return
@@ -63,6 +67,9 @@ class ComparativeAnalysis:
                 st.warning(f"No matching symbols found. Current: {len(current_data_clean)}, Previous: {len(previous_data_clean)}")
                 return
             
+            # Debug: Log merged DataFrame columns
+            st.write(f"Merged data columns: {list(merged.columns)}")
+            
             # Check if we already have change data in the current dataset
             change_pct_col = None
             change_col = None
@@ -73,6 +80,9 @@ class ComparativeAnalysis:
                     change_pct_col = col
                 elif 'Net Change_current' in col:
                     change_col = col
+            
+            # Debug: Log identified change columns
+            st.write(f"Change % column: {change_pct_col}, Net Change column: {change_col}")
             
             if change_pct_col:
                 # Use existing percentage change data
@@ -90,6 +100,9 @@ class ComparativeAnalysis:
                 # Fallback to calculating from price columns
                 price_col_current = self._find_price_column(merged, '_current')
                 price_col_previous = self._find_price_column(merged, '_previous')
+                
+                # Debug: Log identified price columns
+                st.write(f"Price column current: {price_col_current}, Price column previous: {price_col_previous}")
                 
                 if price_col_current and price_col_previous:
                     # Convert price columns to numeric, handling different formats
@@ -176,22 +189,29 @@ class ComparativeAnalysis:
         possible_names = [
             f'Last Sale{suffix}', f'Price{suffix}', f'Close{suffix}', 
             f'Last Price{suffix}', f'Current Price{suffix}', f'Market Price{suffix}',
+            f'Closing Price{suffix}',  # Added for broader matching
             f'last sale{suffix}', f'price{suffix}', f'close{suffix}',
             f'LAST SALE{suffix}', f'PRICE{suffix}', f'CLOSE{suffix}',
             f'Net Change{suffix}', f'% Change{suffix}', f'Change{suffix}'
         ]
         
+        # Debug: Log price column search
+        st.write(f"Searching for price column with suffix {suffix} in columns: {list(df.columns)}")
+        
         # First try exact matches
         for col in possible_names:
             if col in df.columns:
+                st.write(f"Found price column: {col}")
                 return col
         
         # Then try partial matches for price-related columns
         for col in df.columns:
             col_lower = col.lower()
-            if any(name in col_lower for name in ['price', 'sale', 'close', 'value']) and suffix.lower() in col_lower:
+            if any(name in col_lower for name in ['price', 'sale', 'close', 'value', 'closing']) and suffix.lower() in col_lower:
+                st.write(f"Found price column via partial match: {col}")
                 return col
         
+        st.warning(f"No price column found for suffix {suffix}")
         return None
     
     def _find_volume_column(self, df: pd.DataFrame, suffix: str) -> str:
@@ -213,9 +233,12 @@ class ComparativeAnalysis:
                 return col
         return None
     
-    def _clean_numeric_column(self, series: pd.Series) -> pd.Series:
+    def _clean_numeric_column(self, series: pd.DataFrame) -> pd.Series:
         """Clean and convert column to numeric values, handling currency symbols, commas, and percentages."""
         try:
+            # Debug: Log sample values being cleaned
+            st.write(f"Cleaning column: {series.name}, Sample values: {series.head().tolist()}")
+            
             if series.dtype in ['object', 'string']:
                 # Convert to string and clean
                 cleaned = series.astype(str).str.strip()
