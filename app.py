@@ -1452,13 +1452,13 @@ def main():
     with tab4:
         advanced_analytics_section()
    # Clear Analysis Button
-    if st.button("🗑️ Clear All Analysis", help="Reset all analysis data and uploaded files"):
-     try:
-        # Clear all session state keys except those needed for file uploaders
+if st.button("🗑️ Clear All Analysis", help="Reset all analysis data and uploaded files"):
+    try:
+        # Clear all session state keys except Streamlit's internal widget keys
         for key in list(st.session_state.keys()):
-            if not key.startswith("file_uploader_"):  # Avoid clearing file uploader widget keys
+            if not key.startswith("file_uploader_"):  # Protect file_uploader widget keys
                 del st.session_state[key]
-        
+
         # Reinitialize essential session state keys
         st.session_state['current_data_file'] = None
         st.session_state['previous_data_file'] = None
@@ -1467,13 +1467,13 @@ def main():
         st.session_state['historical_data'] = None
         st.session_state['selected_symbol'] = None
         st.session_state['yfinance_data'] = None
-        
-        # Increment upload_key to force file uploader reset
+
+        # Increment upload_key to force file uploader reset (optional, may not be needed with static keys)
         st.session_state['upload_key'] = st.session_state.get('upload_key', 0) + 1
-        
+
         st.success("✅ All analysis data and uploaded files cleared! Ready for new uploads.")
         st.rerun()  # Refresh UI
-     except Exception as e:
+    except Exception as e:
         st.error(f"Error clearing analysis: {str(e)}")
        
   
