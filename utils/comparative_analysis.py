@@ -25,7 +25,6 @@ class ComparativeAnalysis:
     def _prepare_comparative_data(self):
         """Prepare merged dataset for comparative analysis with flexible column matching."""
         try:
-            # Find symbol column with flexible naming
             symbol_col_current = self._find_symbol_column(self.current_data)
             symbol_col_previous = self._find_symbol_column(self.previous_data)
             
@@ -33,7 +32,6 @@ class ComparativeAnalysis:
                 st.error(f"Symbol column not found. Please ensure your data has a column named Symbol, Ticker, or similar")
                 return
             
-            # Standardize symbol column names
             current_data_clean = self.current_data.copy()
             previous_data_clean = self.previous_data.copy()
             
@@ -42,15 +40,12 @@ class ComparativeAnalysis:
             if symbol_col_previous != 'Symbol':
                 previous_data_clean = previous_data_clean.rename(columns={symbol_col_previous: 'Symbol'})
             
-            # Clean and standardize symbols
             current_data_clean['Symbol'] = current_data_clean['Symbol'].astype(str).str.strip().str.upper()
             previous_data_clean['Symbol'] = previous_data_clean['Symbol'].astype(str).str.strip().str.upper()
             
-            # Remove empty symbols
             current_data_clean = current_data_clean[current_data_clean['Symbol'].notna() & (current_data_clean['Symbol'] != '')]
             previous_data_clean = previous_data_clean[previous_data_clean['Symbol'].notna() & (previous_data_clean['Symbol'] != '')]
             
-            # Merge datasets on Symbol
             merged = pd.merge(
                 current_data_clean, 
                 previous_data_clean, 
@@ -63,11 +58,12 @@ class ComparativeAnalysis:
                 st.warning(f"No matching symbols found. Current: {len(current_data_clean)}, Previous: {len(previous_data_clean)}")
                 return
             
-            # Check if we already have change data in the current dataset
+            # Debug: Display merged columns
+            st.write("Merged Data Columns:", merged.columns.tolist())
+            
             change_pct_col = None
             change_col = None
             
-            # Look for existing change columns in current data
             for col in merged.columns:
                 if 'Change_current' in col and '%' in col:
                     change_pct_col = col
@@ -75,11 +71,9 @@ class ComparativeAnalysis:
                     change_col = col
             
             if change_pct_col:
-                # Use existing percentage change data
                 st.info(f"Using existing change data from column: {change_pct_col}")
                 merged['Price_Change_Pct'] = self._clean_numeric_column(merged[change_pct_col])
                 
-                # Add profit/loss classification
                 merged['Profit_Loss'] = merged['Price_Change_Pct'].apply(
                     lambda x: 'Profit' if x > 0 else ('Loss' if x < 0 else 'Neutral') if pd.notna(x) else 'Unknown'
                 )
@@ -87,21 +81,17 @@ class ComparativeAnalysis:
                 if change_col:
                     merged['Price_Change'] = self._clean_numeric_column(merged[change_col])
             else:
-                # Fallback to calculating from price columns
                 price_col_current = self._find_price_column(merged, '_current')
                 price_col_previous = self._find_price_column(merged, '_previous')
                 
                 if price_col_current and price_col_previous:
-                    # Convert price columns to numeric, handling different formats
                     merged[price_col_current] = self._clean_numeric_column(merged[price_col_current])
                     merged[price_col_previous] = self._clean_numeric_column(merged[price_col_previous])
                     
-                    # Calculate price changes
                     merged['Price_Change'] = merged[price_col_current] - merged[price_col_previous]
                     merged['Price_Change_Pct'] = ((merged[price_col_current] - merged[price_col_previous]) / 
                                                 merged[price_col_previous].replace(0, np.nan)) * 100
                     
-                    # Add profit/loss classification
                     merged['Profit_Loss'] = merged['Price_Change_Pct'].apply(
                         lambda x: 'Profit' if x > 0 else ('Loss' if x < 0 else 'Neutral') if pd.notna(x) else 'Unknown'
                     )
@@ -109,7 +99,6 @@ class ComparativeAnalysis:
                     st.warning(f"Neither change columns nor price columns found. Available columns: {list(merged.columns)}")
                     return
             
-            # Find and process volume columns
             volume_col_current = self._find_volume_column(merged, '_current')
             volume_col_previous = self._find_volume_column(merged, '_previous')
             
@@ -121,7 +110,6 @@ class ComparativeAnalysis:
                 merged['Volume_Change_Pct'] = ((merged[volume_col_current] - merged[volume_col_previous]) / 
                                              merged[volume_col_previous].replace(0, np.nan)) * 100
             
-            # Find and process market cap columns
             mcap_col_current = self._find_market_cap_column(merged, '_current')
             mcap_col_previous = self._find_market_cap_column(merged, '_previous')
             
@@ -153,18 +141,15 @@ class ComparativeAnalysis:
             'Security', 'security', 'SECURITY'
         ]
         
-        # First try exact matches
         for col in possible_names:
             if col in df.columns:
                 return col
         
-        # Then try partial matches
         for col in df.columns:
             col_lower = col.lower()
             if any(name.lower() in col_lower for name in ['symbol', 'ticker', 'stock', 'code', 'name', 'company']):
                 return col
         
-        # If no match found, use the first column as fallback
         if len(df.columns) > 0:
             st.warning(f"No symbol column found, using first column: {df.columns[0]}")
             return df.columns[0]
@@ -172,31 +157,31 @@ class ComparativeAnalysis:
         return None
     
     def _find_price_column(self, df: pd.DataFrame, suffix: str) -> str:
-    possible_names = [
-        f'Last Sale{suffix}', f'Price{suffix}', f'Close{suffix}', 
-        f'Last Price{suffix}', f'Current Price{suffix}', f'Market Price{suffix}',
-        f'last sale{suffix}', f'price{suffix}', f'close{suffix}',
-        f'LAST SALE{suffix}', f'PRICE{suffix}', f'CLOSE{suffix}',
-        f'Net Change{suffix}', f'% Change{suffix}', f'Change{suffix}',
-        f'Last{suffix}', f'Closing Price{suffix}', f'Current{suffix}'
-    ]
-    
-    for col in possible_names:
-        if col in df.columns:
-            return col
-    
-    for col in df.columns:
-        col_lower = col.lower()
-        if any(name in col_lower for name in ['price', 'sale', 'close', 'value', 'last', 'current', 'closing']) and suffix.lower() in col_lower:
-            return col
-    
-    # Fallback to any numeric column with suffix
-    for col in df.columns:
-        if suffix.lower() in col.lower() and df[col].dtype in ['float64', 'int64']:
-            st.warning(f"No standard price column found, using fallback: {col}")
-            return col
-    
-    return None
+        """Find price column with flexible naming."""
+        possible_names = [
+            f'Last Sale{suffix}', f'Price{suffix}', f'Close{suffix}', 
+            f'Last Price{suffix}', f'Current Price{suffix}', f'Market Price{suffix}',
+            f'last sale{suffix}', f'price{suffix}', f'close{suffix}',
+            f'LAST SALE{suffix}', f'PRICE{suffix}', f'CLOSE{suffix}',
+            f'Net Change{suffix}', f'% Change{suffix}', f'Change{suffix}',
+            f'Last{suffix}', f'Closing Price{suffix}', f'Current{suffix}'
+        ]
+        
+        for col in possible_names:
+            if col in df.columns:
+                return col
+        
+        for col in df.columns:
+            col_lower = col.lower()
+            if any(name in col_lower for name in ['price', 'sale', 'close', 'value', 'last', 'current', 'closing']) and suffix.lower() in col_lower:
+                return col
+        
+        for col in df.columns:
+            if suffix.lower() in col.lower() and df[col].dtype in ['float64', 'int64']:
+                st.warning(f"No standard price column found, using fallback: {col}")
+                return col
+        
+        return None
     
     def _find_volume_column(self, df: pd.DataFrame, suffix: str) -> str:
         """Find volume column with flexible naming."""
@@ -220,21 +205,17 @@ class ComparativeAnalysis:
     def _clean_numeric_column(self, series: pd.Series) -> pd.Series:
         """Clean and convert column to numeric values."""
         if series.dtype in ['object', 'string']:
-            # Handle percentage values specifically
             cleaned = series.astype(str).str.strip()
-            
-            # Check if it's a percentage column
             is_percentage = cleaned.str.contains('%', na=False).any()
             
             if is_percentage:
-                # Remove % sign and convert to float
                 cleaned = cleaned.str.replace('%', '', regex=False)
                 cleaned = cleaned.str.replace(',', '', regex=False)
                 cleaned = pd.to_numeric(cleaned, errors='coerce')
             else:
-                # Remove currency symbols, commas, and other non-numeric characters
                 cleaned = cleaned.str.replace(r'[$,€£¥₹]', '', regex=True)
                 cleaned = cleaned.str.replace(r'[^\d.-]', '', regex=True)
+                cleaned = cleaned.replace(['', 'N/A', 'nan', 'NaN'], np.nan)
                 cleaned = pd.to_numeric(cleaned, errors='coerce')
         else:
             cleaned = pd.to_numeric(series, errors='coerce')
@@ -246,53 +227,32 @@ class ComparativeAnalysis:
         if self.merged_data is None or self.merged_data.empty:
             return {}
         
+        summary = {}
+        
         try:
-            # Price metrics analysis
             if 'Price_Change_Pct' in self.merged_data.columns:
                 price_changes = self.merged_data['Price_Change_Pct'].dropna()
                 if not price_changes.empty:
-                    gainers = int((price_changes > 0).sum())
-                    losers = int((price_changes < 0).sum())
-                    unchanged = int((price_changes == 0).sum())
-                    avg_change = float(price_changes.mean())
-                    
-                    # Return simple structure that matches app expectations
-                    summary = {
+                    summary.update({
                         'total_stocks': len(self.merged_data),
-                        'gainers': gainers,
-                        'losers': losers,
-                        'unchanged': unchanged,
-                        'avg_change': avg_change,
+                        'gainers': int((price_changes > 0).sum()),
+                        'losers': int((price_changes < 0).sum()),
+                        'unchanged': int((price_changes == 0).sum()),
+                        'avg_change': float(price_changes.mean()),
                         'max_gain': float(price_changes.max()),
-                        'max_loss': float(price_changes.min())
-                    }
-                    
-                    return summary
+                        'max_loss': float(price_changes.min()),
+                        'price_metrics': {
+                            'avg_change_pct': float(price_changes.mean()),
+                            'median_change_pct': float(price_changes.median()),
+                            'std_change_pct': float(price_changes.std()),
+                            'min_change_pct': float(price_changes.min()),
+                            'max_change_pct': float(price_changes.max()),
+                            'positive_stocks': int((price_changes > 0).sum()),
+                            'negative_stocks': int((price_changes < 0).sum()),
+                            'unchanged_stocks': int((price_changes == 0).sum())
+                        }
+                    })
             
-            # Fallback for no price data
-            return {
-                'total_stocks': len(self.merged_data),
-                'gainers': 0,
-                'losers': 0,
-                'unchanged': 0,
-                'avg_change': 0.0,
-                'max_gain': 0.0,
-                'max_loss': 0.0
-            }
-            
-        except Exception as e:
-            # Return default values if error occurs
-            return {
-                'total_stocks': 0,
-                'gainers': 0,
-                'losers': 0,
-                'unchanged': 0,
-                'avg_change': 0.0,
-                'max_gain': 0.0,
-                'max_loss': 0.0
-            }
-            
-            # Volume metrics analysis
             if 'Volume_Change_Pct' in self.merged_data.columns:
                 volume_changes = self.merged_data['Volume_Change_Pct'].dropna()
                 if not volume_changes.empty:
@@ -303,57 +263,16 @@ class ComparativeAnalysis:
                         'volume_decrease_count': int((volume_changes < 0).sum())
                     }
             
-            # Market cap metrics analysis
             if 'MarketCap_Change_Pct' in self.merged_data.columns:
                 mcap_changes = self.merged_data['MarketCap_Change_Pct'].dropna()
                 if not mcap_changes.empty:
                     summary['market_cap_metrics'] = {
                         'avg_mcap_change_pct': float(mcap_changes.mean()),
                         'median_mcap_change_pct': float(mcap_changes.median()),
-                        'mcap_increase_count': int((mcap_changes > 0).sum()),
-                        'mcap_decrease_count': int((mcap_changes < 0).sum())
+                        'std_mcap_change_pct': float(mcap_changes.std()),
+                        'total_mcap_change': float(self.merged_data['MarketCap_Change'].sum() if 'MarketCap_Change' in self.merged_data.columns else 0)
                     }
             
-            return summary
-            
-        except Exception as e:
-            st.error(f"Error generating performance summary: {str(e)}")
-            return {}
-            
-            # Price performance metrics
-            if 'Price_Change_Pct' in self.merged_data.columns:
-                price_changes = self.merged_data['Price_Change_Pct'].dropna()
-                summary['price_metrics'] = {
-                    'avg_change_pct': float(price_changes.mean()),
-                    'median_change_pct': float(price_changes.median()),
-                    'std_change_pct': float(price_changes.std()),
-                    'min_change_pct': float(price_changes.min()),
-                    'max_change_pct': float(price_changes.max()),
-                    'positive_stocks': int((price_changes > 0).sum()),
-                    'negative_stocks': int((price_changes < 0).sum()),
-                    'unchanged_stocks': int((price_changes == 0).sum())
-                }
-            
-            # Market cap metrics
-            if 'MarketCap_Change_Pct' in self.merged_data.columns:
-                mcap_changes = self.merged_data['MarketCap_Change_Pct'].dropna()
-                summary['market_cap_metrics'] = {
-                    'avg_change_pct': float(mcap_changes.mean()),
-                    'median_change_pct': float(mcap_changes.median()),
-                    'std_change_pct': float(mcap_changes.std()),
-                    'total_mcap_change': float(self.merged_data['MarketCap_Change'].sum() if 'MarketCap_Change' in self.merged_data.columns else 0)
-                }
-            
-            # Volume metrics
-            if 'Volume_Change_Pct' in self.merged_data.columns:
-                vol_changes = self.merged_data['Volume_Change_Pct'].dropna()
-                summary['volume_metrics'] = {
-                    'avg_change_pct': float(vol_changes.mean()),
-                    'median_change_pct': float(vol_changes.median()),
-                    'total_volume_change': float(self.merged_data['Volume_Change'].sum() if 'Volume_Change' in self.merged_data.columns else 0)
-                }
-            
-            # Top and bottom performers
             if 'Price_Change_Pct' in self.merged_data.columns:
                 top_performers = self.merged_data.nlargest(5, 'Price_Change_Pct')[
                     ['Symbol', 'Name_current', 'Price_Change_Pct', 'Last Sale_current']
@@ -367,10 +286,18 @@ class ComparativeAnalysis:
                 summary['bottom_performers'] = bottom_performers
             
             return summary
-            
+        
         except Exception as e:
             st.error(f"Error generating performance summary: {str(e)}")
-            return {}
+            return {
+                'total_stocks': 0,
+                'gainers': 0,
+                'losers': 0,
+                'unchanged': 0,
+                'avg_change': 0.0,
+                'max_gain': 0.0,
+                'max_loss': 0.0
+            }
     
     def get_sector_analysis(self) -> pd.DataFrame:
         """Analyze performance by sector."""
