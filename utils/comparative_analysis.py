@@ -105,6 +105,20 @@ class ComparativeAnalysis:
                     merged['Profit_Loss'] = merged['Price_Change_Pct'].apply(
                         lambda x: 'Profit' if x > 0 else ('Loss' if x < 0 else 'Neutral') if pd.notna(x) else 'Unknown'
                     )
+                    
+                    # Calculate Profit/Loss Value
+                    # Look for quantity column
+                    quantity_col = self._find_quantity_column(merged, '_current')
+                    if quantity_col:
+                        merged['Quantity'] = self._clean_numeric_column(merged[quantity_col])
+                        st.info(f"Using quantity data from column: {quantity_col}")
+                    else:
+                        # Default to 100 shares if no quantity column is found
+                        merged['Quantity'] = 100
+                        st.info("No quantity column found, assuming 100 shares per stock")
+                    
+                    # Calculate Profit/Loss Value
+                    merged['Profit_Loss_Value'] = merged['Price_Change'] * mergedádiz['Quantity']
                 else:
                     st.warning(f"Neither change columns nor price columns found. Available columns: {list(merged.columns)}")
                     return
@@ -213,6 +227,18 @@ class ComparativeAnalysis:
                 return col
         return None
     
+    def _find_quantity_column(self, df: pd.DataFrame, suffix: str) -> str:
+        """Find quantity column with flexible naming."""
+        possible_names = [
+            f'Quantity{suffix}', f'Shares{suffix}', f'Holdings{suffix}',
+            f'quantity{suffix}', f'shares{suffix}', f'holdings{suffix}',
+            f'QUANTITY{suffix}', f'SHARES{suffix}', f'HOLDINGS{suffix}'
+        ]
+        for col in possible_names:
+            if col in df.columns:
+                return col
+        return None
+    
     def _clean_numeric_column(self, series: pd.Series) -> pd.Series:
         """Clean and convert column to numeric values."""
         if series.dtype in ['object', 'string']:
@@ -252,6 +278,9 @@ class ComparativeAnalysis:
                     unchanged = int((price_changes == 0).sum())
                     avg_change = float(price_changes.mean())
                     
+                    # Calculate total profit/loss value
+                    total_profit_loss_value = float(self.merged_data['Profit_Loss_Value'].sum()) if 'Profit_Loss_Value' in self.merged_data.columns else 0.0
+                    
                     # Return simple structure that matches app expectations
                     summary = {
                         'total_stocks': len(self.merged_data),
@@ -260,7 +289,8 @@ class ComparativeAnalysis:
                         'unchanged': unchanged,
                         'avg_change': avg_change,
                         'max_gain': float(price_changes.max()),
-                        'max_loss': float(price_changes.min())
+                        'max_loss': float(price_changes.min()),
+                        'total_profit_loss_value': total_profit_loss_value
                     }
                     
                     return summary
@@ -273,7 +303,8 @@ class ComparativeAnalysis:
                 'unchanged': 0,
                 'avg_change': 0.0,
                 'max_gain': 0.0,
-                'max_loss': 0.0
+                'max_loss': 0.0,
+                'total_profit_loss_value': 0.0
             }
             
         except Exception as e:
@@ -285,88 +316,9 @@ class ComparativeAnalysis:
                 'unchanged': 0,
                 'avg_change': 0.0,
                 'max_gain': 0.0,
-                'max_loss': 0.0
+                'max_loss': 0.0,
+                'total_profit_loss_value': 0.0
             }
-            
-            # Volume metrics analysis
-            if 'Volume_Change_Pct' in self.merged_data.columns:
-                volume_changes = self.merged_data['Volume_Change_Pct'].dropna()
-                if not volume_changes.empty:
-                    summary['volume_metrics'] = {
-                        'avg_volume_change_pct': float(volume_changes.mean()),
-                        'median_volume_change_pct': float(volume_changes.median()),
-                        'volume_increase_count': int((volume_changes > 0).sum()),
-                        'volume_decrease_count': int((volume_changes < 0).sum())
-                    }
-            
-            # Market cap metrics analysis
-            if 'MarketCap_Change_Pct' in self.merged_data.columns:
-                mcap_changes = self.merged_data['MarketCap_Change_Pct'].dropna()
-                if not mcap_changes.empty:
-                    summary['market_cap_metrics'] = {
-                        'avg_mcap_change_pct': float(mcap_changes.mean()),
-                        'median_mcap_change_pct': float(mcap_changes.median()),
-                        'mcap_increase_count': int((mcap_changes > 0).sum()),
-                        'mcap_decrease_count': int((mcap_changes < 0).sum())
-                    }
-            
-            return summary
-            
-        except Exception as e:
-            st.error(f"Error generating performance summary: {str(e)}")
-            return {}
-            
-            # Price performance metrics
-            if 'Price_Change_Pct' in self.merged_data.columns:
-                price_changes = self.merged_data['Price_Change_Pct'].dropna()
-                summary['price_metrics'] = {
-                    'avg_change_pct': float(price_changes.mean()),
-                    'median_change_pct': float(price_changes.median()),
-                    'std_change_pct': float(price_changes.std()),
-                    'min_change_pct': float(price_changes.min()),
-                    'max_change_pct': float(price_changes.max()),
-                    'positive_stocks': int((price_changes > 0).sum()),
-                    'negative_stocks': int((price_changes < 0).sum()),
-                    'unchanged_stocks': int((price_changes == 0).sum())
-                }
-            
-            # Market cap metrics
-            if 'MarketCap_Change_Pct' in self.merged_data.columns:
-                mcap_changes = self.merged_data['MarketCap_Change_Pct'].dropna()
-                summary['market_cap_metrics'] = {
-                    'avg_change_pct': float(mcap_changes.mean()),
-                    'median_change_pct': float(mcap_changes.median()),
-                    'std_change_pct': float(mcap_changes.std()),
-                    'total_mcap_change': float(self.merged_data['MarketCap_Change'].sum() if 'MarketCap_Change' in self.merged_data.columns else 0)
-                }
-            
-            # Volume metrics
-            if 'Volume_Change_Pct' in self.merged_data.columns:
-                vol_changes = self.merged_data['Volume_Change_Pct'].dropna()
-                summary['volume_metrics'] = {
-                    'avg_change_pct': float(vol_changes.mean()),
-                    'median_change_pct': float(vol_changes.median()),
-                    'total_volume_change': float(self.merged_data['Volume_Change'].sum() if 'Volume_Change' in self.merged_data.columns else 0)
-                }
-            
-            # Top and bottom performers
-            if 'Price_Change_Pct' in self.merged_data.columns:
-                top_performers = self.merged_data.nlargest(5, 'Price_Change_Pct')[
-                    ['Symbol', 'Name_current', 'Price_Change_Pct', 'Last Sale_current']
-                ].to_dict('records')
-                
-                bottom_performers = self.merged_data.nsmallest(5, 'Price_Change_Pct')[
-                    ['Symbol', 'Name_current', 'Price_Change_Pct', 'Last Sale_current']
-                ].to_dict('records')
-                
-                summary['top_performers'] = top_performers
-                summary['bottom_performers'] = bottom_performers
-            
-            return summary
-            
-        except Exception as e:
-            st.error(f"Error generating performance summary: {str(e)}")
-            return {}
     
     def get_sector_analysis(self) -> pd.DataFrame:
         """Analyze performance by sector."""
@@ -380,6 +332,7 @@ class ComparativeAnalysis:
             
             sector_analysis = self.merged_data.groupby(sector_col).agg({
                 'Price_Change_Pct': ['mean', 'median', 'std', 'count'],
+                'Profit_Loss_Value': ['sum', 'mean'] if 'Profit_Loss_Value' in self.merged_data.columns else ['count'],
                 'MarketCap_Change_Pct': ['mean', 'median'] if 'MarketCap_Change_Pct' in self.merged_data.columns else ['count'],
                 'Volume_Change_Pct': ['mean', 'median'] if 'Volume_Change_Pct' in self.merged_data.columns else ['count']
             }).round(2)
@@ -406,6 +359,7 @@ class ComparativeAnalysis:
             
             industry_analysis = self.merged_data.groupby(industry_col).agg({
                 'Price_Change_Pct': ['mean', 'median', 'std', 'count'],
+                'Profit_Loss_Value': ['sum', 'mean'] if 'Profit_Loss_Value' in self.merged_data.columns else ['count'],
                 'MarketCap_Change_Pct': ['mean'] if 'MarketCap_Change_Pct' in self.merged_data.columns else ['count'],
                 'Volume_Change_Pct': ['mean'] if 'Volume_Change_Pct' in self.merged_data.columns else ['count']
             }).round(2)
@@ -436,6 +390,7 @@ class ComparativeAnalysis:
             
             country_analysis = self.merged_data.groupby(country_col).agg({
                 'Price_Change_Pct': ['mean', 'median', 'count'],
+                'Profit_Loss_Value': ['sum', 'mean'] if 'Profit_Loss_Value' in self.merged_data.columns else ['count'],
                 'Market Cap_current': ['sum', 'mean'] if 'Market Cap_current' in self.merged_data.columns else ['count'],
                 'Volume_current': ['sum', 'mean'] if 'Volume_current' in self.merged_data.columns else ['count']
             }).round(2)
@@ -465,6 +420,7 @@ class ComparativeAnalysis:
             
             ipo_analysis = self.merged_data.groupby('IPO_Decade').agg({
                 'Price_Change_Pct': ['mean', 'median', 'count'],
+                'Profit_Loss_Value': ['sum', 'mean'] if 'Profit_Loss_Value' in self.merged_data.columns else ['count'],
                 'Market Cap_current': ['mean'] if 'Market Cap_current' in self.merged_data.columns else ['count']
             }).round(2)
             
@@ -495,11 +451,11 @@ class ComparativeAnalysis:
                 extreme_threshold = 3
                 extreme_positive = self.merged_data[
                     self.merged_data['Price_Change_Pct'] > (mean_change + extreme_threshold * std_change)
-                ][['Symbol', 'Name_current', 'Price_Change_Pct', 'Last Sale_current']].to_dict('records')
+                ][['Symbol', 'Name_current', 'Price_Change_Pct', 'Profit_Loss_Value', 'Last Sale_current']].to_dict('records')
                 
                 extreme_negative = self.merged_data[
                     self.merged_data['Price_Change_Pct'] < (mean_change - extreme_threshold * std_change)
-                ][['Symbol', 'Name_current', 'Price_Change_Pct', 'Last Sale_current']].to_dict('records')
+                ][['Symbol', 'Name_current', 'Price_Change_Pct', 'Profit_Loss_Value', 'Last Sale_current']].to_dict('records')
                 
                 outliers['extreme_gainers'] = extreme_positive
                 outliers['extreme_losers'] = extreme_negative
@@ -531,7 +487,7 @@ class ComparativeAnalysis:
             # Select numerical columns for correlation
             numerical_cols = [col for col in self.merged_data.columns if 
                             self.merged_data[col].dtype in ['float64', 'int64'] and 
-                            'Change' in col]
+                            'Change' in col or col == 'Profit_Loss_Value']
             
             if len(numerical_cols) < 2:
                 return pd.DataFrame()
@@ -552,9 +508,9 @@ class ComparativeAnalysis:
             fig = make_subplots(
                 rows=2, cols=2,
                 subplot_titles=('Price Change Distribution', 'Sector Performance', 
-                              'Price vs Market Cap Change', 'Volume Change Analysis'),
+                              'Price vs Market Cap Change', 'Profit/Loss Value Distribution'),
                 specs=[[{"type": "histogram"}, {"type": "bar"}],
-                       [{"type": "scatter"}, {"type": "box"}]]
+                       [{"type": "scatter"}, {"type": "histogram"}]]
             )
             
             # Price change histogram
@@ -596,12 +552,13 @@ class ComparativeAnalysis:
                     row=2, col=1
                 )
             
-            # Volume change box plot
-            if 'Volume_Change_Pct' in self.merged_data.columns:
+            # Profit/Loss Value histogram
+            if 'Profit_Loss_Value' in self.merged_data.columns:
                 fig.add_trace(
-                    go.Box(
-                        y=self.merged_data['Volume_Change_Pct'],
-                        name='Volume Change %',
+                    go.Histogram(
+                        x=self.merged_data['Profit_Loss_Value'],
+                        name='Profit/Loss Value ($)',
+                        nbinsx=30,
                         marker_color='lightcoral'
                     ),
                     row=2, col=2
