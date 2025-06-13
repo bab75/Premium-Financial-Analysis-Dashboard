@@ -453,8 +453,9 @@ def phase1_comparative_analysis_section():
                 if not filtered_df.empty:
                     # Prepare display columns
                     display_columns = [
-                        'Symbol', 'Last Sale_prev', 'Last Sale_curr', 'Net Change_prev', 'Net Change_curr',
-                        '% Change_prev', '% Change_curr', '% Change_calc', 'Profit_Loss', 'Profit_Loss_Value',
+                        'Symbol', 'Last Sale_prev', 'Net Change_prev', '% Change_prev',
+                        'Last Sale_curr', 'Net Change_curr', '% Change_curr',
+                        'Profit_Loss', '% Change_calc', 'Profit_Loss_Value',
                         'Volume_prev', 'Volume_curr', 'Sector_curr', 'Industry_curr', 'Country_curr'
                     ]
                     
@@ -465,7 +466,7 @@ def phase1_comparative_analysis_section():
                     display_data = filtered_df[available_columns].copy()
                     for col in display_data.columns:
                         if col == 'Profit_Loss_Value':
-                            display_data[col] = display_data[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else 'N/A')
+                            display_data[col] = display_data[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else '$0.00')
                         elif display_data[col].dtype in ['float64', 'int64']:
                             display_data[col] = display_data[col].round(2)
                     
@@ -476,7 +477,8 @@ def phase1_comparative_analysis_section():
                     )
                     
                     # Download filtered data
-                    csv = filtered_df.to_csv(index=False)
+                    download_df = filtered_df[display_columns].copy()
+                    csv = download_df.to_csv(index=False)
                     st.download_button(
                         label="📥 Download Filtered Data",
                         data=csv,
@@ -498,7 +500,7 @@ def phase1_comparative_analysis_section():
             display_sector_data = sector_analysis.copy()
             for col in display_sector_data.columns:
                 if 'Profit_Loss_Value' in col:
-                    display_sector_data[col] = display_sector_data[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else 'N/A')
+                    display_sector_data[col] = display_sector_data[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else '$0.00')
                 elif display_sector_data[col].dtype in ['float64', 'int64']:
                     display_sector_data[col] = display_sector_data[col].round(2)
             st.dataframe(display_sector_data, use_container_width=True)
@@ -513,7 +515,7 @@ def phase1_comparative_analysis_section():
             display_industry_data = industry_analysis.copy()
             for col in display_industry_data.columns:
                 if 'Profit_Loss_Value' in col:
-                    display_industry_data[col] = display_industry_data[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else 'N/A')
+                    display_industry_data[col] = display_industry_data[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else '$0.00')
                 elif display_industry_data[col].dtype in ['float64', 'int64']:
                     display_industry_data[col] = display_industry_data[col].round(2)
             st.dataframe(display_industry_data, use_container_width=True)
@@ -914,7 +916,7 @@ def advanced_analytics_section():
     # Add missing columns
     for col in ['Dividends', 'Stock Splits']:
         if col not in data_clean.columns:
-        data_clean[col] = 0
+            data_clean[col] = 0
     
     # Rename Date to Datetime
     if 'Date' in data_clean.columns:
