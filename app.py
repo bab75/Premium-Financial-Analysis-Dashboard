@@ -6,6 +6,31 @@ import plotly.express as px
 from plotly.subplots import make_subplots
 import warnings
 
+# Import utility modules
+from utils.data_processor import DataProcessor
+from utils.technical_indicators import TechnicalIndicators
+from utils.visualizations import Visualizations
+from utils.predictions import PricePredictions
+from utils.analytics import Analytics
+from utils.comparative_analysis import ComparativeAnalysis
+from utils.enhanced_processor import EnhancedDataProcessor
+from utils.fixed_processor import FixedDataProcessor
+from utils.comprehensive_fix import ComprehensiveFix
+from utils.risk_gauge import RiskGauge
+from utils.chart_formatter import ChartFormatter
+import yfinance as yf
+from datetime import datetime, timedelta
+
+warnings.filterwarnings('ignore')
+
+# Page configuration - MUST be first
+st.set_page_config(
+    page_title="Premium Financial Analysis Dashboard",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 # Initialize session state
 if 'current_data' not in st.session_state:
     st.session_state.current_data = None
@@ -21,22 +46,20 @@ if 'comparative_analysis' not in st.session_state:
     st.session_state.comparative_analysis = None
 if 'yfinance_data' not in st.session_state:
     st.session_state.yfinance_data = None
-if 'upload_key' not in st.session_state:
-    st.session_state.upload_key = 0  # Initialize upload_key for file_uploader reset
 
 def data_upload_section():
     """Enhanced Data Upload & Processing section."""
     st.header("📁 Enhanced Data Upload & Processing")
     st.markdown("Upload your stock data files for comprehensive Phase 1 & Phase 2 analysis")
     
-    processor = DataProcessor()  # Assuming DataProcessor is defined elsewhere
+    processor = DataProcessor()
     
     # Current Data Upload
     st.subheader("📊 Current Stock Data")
     current_file = st.file_uploader(
         "Upload Current Stock Data (Excel/CSV)",
         type=['xlsx', 'xls', 'csv'],
-        key=f"current_data_file_{st.session_state.upload_key}",  # Dynamic key
+        key="current_data_file",
         help="Upload your current stock trading data with columns like Symbol, Name, Last Sale, % Change, etc."
     )
     
@@ -57,6 +80,7 @@ def data_upload_section():
                     with col1:
                         st.metric("Total Stocks", len(current_data))
                     with col2:
+                        # Fix valid symbols count
                         if 'Symbol' in current_data.columns:
                             valid_count = len(current_data[current_data['Symbol'].notna() & 
                                                           (current_data['Symbol'].astype(str).str.strip() != '') & 
@@ -69,6 +93,7 @@ def data_upload_section():
                     with col4:
                         st.metric("Quality Score", f"{quality_report.get('overall_quality', 0):.1f}/10")
                     
+                    # Show sample data
                     with st.expander("📋 Sample Data Preview"):
                         st.dataframe(current_data.head(), use_container_width=True)
                 else:
@@ -82,7 +107,7 @@ def data_upload_section():
     previous_file = st.file_uploader(
         "Upload Previous Stock Data (Excel/CSV)",
         type=['xlsx', 'xls', 'csv'],
-        key=f"previous_data_file_{st.session_state.upload_key}",  # Dynamic key
+        key="previous_data_file",
         help="Upload previous period stock data for Phase 1 comparative analysis"
     )
     
@@ -95,6 +120,7 @@ def data_upload_section():
                     st.session_state.previous_data = previous_data
                     st.success(f"✅ Previous data loaded successfully! ({len(previous_data)} stocks)")
                     
+                    # Show sample data
                     with st.expander("📋 Previous Data Preview"):
                         st.dataframe(previous_data.head(), use_container_width=True)
                 else:
@@ -103,9 +129,8 @@ def data_upload_section():
         except Exception as e:
             st.error(f"Error processing previous data: {str(e)}")
     
-    # Process Button
-    if ('current_data' in st.session_state and st.session_state.current_data is not None and
-        'previous_data' in st.session_state and st.session_state.previous_data is not None):
+    # Process Button - Show when both files are uploaded
+    if ('current_data' in st.session_state and 'previous_data' in st.session_state):
         st.success("🎉 Both datasets are ready for analysis!")
         
         col1, col2, col3 = st.columns([1, 2, 1])
@@ -1426,51 +1451,30 @@ def main():
     
     with tab4:
         advanced_analytics_section()
-
 # Clear Analysis Button
 if st.button("🗑️ Clear All Analysis", help="Reset all analysis data and uploaded files"):
     try:
-        # Define keys to clear
-        keys_to_clear = [
-            'current_data',
-            'previous_data',
-            'historical_data',
-            'selected_symbol',
-            'data_quality_report',
-            'comparative_analysis',
-            'yfinance_data'
-        ]
-        
-        # Clear specified session state keys
-        for key in keys_to_clear:
-            if key in st.session_state:
+        # Clear all session state keys except Streamlit's internal widget keys
+        for key in list(st.session_state.keys()):
+            if not key.startswith("file_uploader_"):  # Protect file_uploader widget keys
                 del st.session_state[key]
-        
-        # Reinitialize keys to None
+
+        # Reinitialize essential session state keys
         st.session_state['current_data'] = None
         st.session_state['previous_data'] = None
+        st.session_state['comparative_analysis'] = None
+        st.session_state['data_quality_report'] = None
         st.session_state['historical_data'] = None
         st.session_state['selected_symbol'] = None
-        st.session_state['data_quality_report'] = None
-        st.session_state['comparative_analysis'] = None
         st.session_state['yfinance_data'] = None
-        
-        # Increment upload_key to reset file_uploader widgets
+
+        # Increment upload_key to force file uploader reset (optional, may not be needed with static keys)
         st.session_state['upload_key'] = st.session_state.get('upload_key', 0) + 1
-        
-        # Explicitly clear file_uploader states
-        current_uploader_key = f"current_data_file_{st.session_state.upload_key - 1}"
-        previous_uploader_key = f"previous_data_file_{st.session_state.upload_key - 1}"
-        if current_uploader_key in st.session_state:
-            del st.session_state[current_uploader_key]
-        if previous_uploader_key in st.session_state:
-            del st.session_state[previous_uploader_key]
-        
+
         st.success("✅ All analysis data and uploaded files cleared! Ready for new uploads.")
         st.rerun()  # Refresh UI
     except Exception as e:
         st.error(f"Error clearing analysis: {str(e)}")
-       
-  
+
 if __name__ == "__main__":
     main()
