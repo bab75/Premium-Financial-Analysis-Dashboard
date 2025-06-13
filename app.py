@@ -1452,8 +1452,8 @@ def main():
     with tab4:
         advanced_analytics_section()
     # Clear Analysis Button
-if st.button("🗑️ Clear All Analysis", help="Reset all analysis data and uploaded files"):
-    try:
+    if st.button("🗑️ Clear All Analysis", help="Reset all analysis data and uploaded files"):
+     try:
         # Clear all session state
         for key in list(st.session_state.keys()):
             del st.session_state[key]
@@ -1471,7 +1471,7 @@ if st.button("🗑️ Clear All Analysis", help="Reset all analysis data and upl
         st.session_state[f"previous_data_file_{st.session_state['upload_key']}"] = None
         st.success("✅ All analysis data and uploaded files cleared! Ready for new uploads.")
         st.rerun()  # Refresh UI
-    except Exception as e:
+     except Exception as e:
         st.error(f"Error clearing analysis: {str(e)}")
 
 if __name__ == "__main__":
