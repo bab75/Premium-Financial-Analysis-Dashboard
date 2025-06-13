@@ -300,17 +300,8 @@ def phase1_comparative_analysis_section():
                         st.error(f"🔴 **{symbol}**: {change_pct:.2f}%")
                 else:
                     st.info("No bottom performers available")
-                   
-        # Performance Dashboard
-        st.subheader("📊 Performance Dashboard")
-        try:
-            dashboard_fig = comp_analysis.create_performance_dashboard()
-            if dashboard_fig and hasattr(dashboard_fig, 'data') and dashboard_fig.data:
-                st.plotly_chart(dashboard_fig, use_container_width=True)
-        except:
-            st.info("Dashboard unavailable. Analysis continues below.")
-                st.info("No bottom performers data available")
-        
+               
+               
         # Performance Dashboard
         st.subheader("📊 Performance Dashboard")
         try:
