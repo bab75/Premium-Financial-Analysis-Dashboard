@@ -162,7 +162,7 @@ class ComparativeAnalysis:
                 'Profit_Loss', '% Change_calc', 'Profit_Loss_Value',
                 'Volume_prev', 'Volume_curr', 'Sector_curr', 'Industry_curr', 'Country_curr'
             ]
-            self.merged_data = output_data[final_columns]
+            self.merged_data = output_data[final_columns].round(2)
             
             st.success(f"Successfully prepared comparative analysis for {len(self.merged_data)} stocks")
             
@@ -188,7 +188,7 @@ class ComparativeAnalysis:
     
     def _find_price_column(self, df: pd.DataFrame) -> str:
         """Find price column with flexible, case-insensitive naming."""
-        possible_names = ['last sale', 'price', 'close', 'last price', 'current price', 'market price']
+        possible_names = ['last sale', 'price', 'close', 'last price', 'current price', 'market price', 'value']
         
         for col in df.columns:
             col_lower = col.lower()
@@ -275,30 +275,29 @@ class ComparativeAnalysis:
         return None
     
     def _clean_numeric_column(self, series: pd.Series) -> pd.Series:
-        """Clean and convert column to numeric values."""
+        """Clean and convert column to numeric values, handling currency and percentages."""
         try:
-            if series.dtype in ['object', 'string']:
-                cleaned = series.astype(str).str.strip()
-                
-                # Remove currency symbols, commas, and other non-numeric characters
-                cleaned = cleaned.str.replace(r'[$,€£¥₹]', '', regex=True)
-                cleaned = cleaned.str.replace(',', '', regex=True)
-                
-                # Handle percentages
-                if cleaned.str.contains('%', na=False).any():
-                    cleaned = cleaned.str.replace('%', '', regex=False)
-                    cleaned = pd.to_numeric(cleaned, errors='coerce') / 100
-                else:
-                    # Remove any remaining non-numeric characters except digits, decimal point, and minus
-                    cleaned = cleaned.str.replace(r'[^\d.-]', '', regex=True)
-                    cleaned = pd.to_numeric(cleaned, errors='coerce')
+            # Convert to string and clean
+            cleaned = series.astype(str).str.strip()
+            
+            # Remove currency symbols, commas, and percentages
+            cleaned = cleaned.str.replace(r'[\$,€£¥₹]', '', regex=True)
+            cleaned = cleaned.str.replace(',', '', regex=True)
+            
+            # Handle percentages
+            if cleaned.str.contains('%', na=False).any():
+                cleaned = cleaned.str.replace('%', '')
+                cleaned = pd.to_numeric(cleaned, errors='coerce') / 100
             else:
-                cleaned = pd.to_numeric(series, errors='coerce')
+                cleaned = pd.to_numeric(cleaned, errors='coerce')
+            
+            # Replace NaN with 0
+            cleaned = cleaned.fillna(0)
             
             return cleaned
         except Exception as e:
             st.warning(f"Error cleaning numeric column: {str(e)}")
-            return pd.Series(np.nan, index=series.index)
+            return pd.Series(0, index=series.index)
     
     def get_performance_summary(self) -> Dict:
         """Generate comprehensive performance summary."""
@@ -474,7 +473,7 @@ class ComparativeAnalysis:
                     x=self.merged_data['Profit_Loss_Value'],
                     name='Profit/Loss Value ($)',
                     nbinsx=30,
-                    marker_color=40
+                    marker_color='lightcoral'
                 ),
                 row=2, col=2
             )
