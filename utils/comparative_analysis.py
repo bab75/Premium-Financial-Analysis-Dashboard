@@ -49,8 +49,9 @@ class ComparativeAnalysis:
             current_data_clean = current_data_clean[current_data_clean['Symbol'].notna() & (current_data_clean['Symbol'] != '')]
             previous_data_clean = previous_data_clean[previous_data_clean['Symbol'].notna() & (previous_data_clean['Symbol'] != '')]
             
-            # Initialize output dataframe with Symbol column
-            output_data = pd.DataFrame({'Symbol': current_data_clean['Symbol'].intersection(previous_data_clean['Symbol'])})
+            # Find common symbols using set intersection
+            common_symbols = set(current_data_clean['Symbol']).intersection(set(previous_data_clean['Symbol']))
+            output_data = pd.DataFrame({'Symbol': list(common_symbols)})
             
             if output_data.empty:
                 st.warning(f"No matching symbols found. Current: {len(current_data_clean)}, Previous: {len(previous_data_clean)}")
@@ -65,8 +66,10 @@ class ComparativeAnalysis:
             price_col_prev = self._find_price_column(previous_data_clean)
             
             if not price_col_curr or not price_col_prev:
-                st.error("Price columns not found in one or both datasets.")
+                st.error(f"Price columns not found. Current: {price_col_curr}, Previous: {price_col_prev}")
                 return
+            
+            st.info(f"Price columns identified - Current: {price_col_curr}, Previous: {price_col_prev}")
             
             # Rename price columns to Last Sale
             output_data['Last Sale_curr'] = self._clean_numeric_column(output_data[f'{price_col_curr}_curr'])
