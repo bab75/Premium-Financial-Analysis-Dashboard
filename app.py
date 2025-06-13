@@ -1458,8 +1458,8 @@ def main():
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         # Manually reinitialize essential session state keys
-        st.session_state['current_data'] = None
-        st.session_state['previous_data'] = None
+        st.session_state['current_data_file'] = None
+        st.session_state['previous_data_file'] = None
         st.session_state['comparative_analysis'] = None
         st.session_state['upload_key'] = (st.session_state.get('upload_key', 0) + 1) % 1000  # Increment with modulo to avoid overflow
         st.session_state['data_quality_report'] = None
@@ -1473,11 +1473,6 @@ def main():
         st.rerun()  # Refresh UI
      except Exception as e:
         st.error(f"Error clearing analysis: {str(e)}")
-    if st.button("Clearanalysis All"):
-        st.session_state.filter_data = None
-        st.session_state.selected_symbol = None
-        st.session_state.current_page = 1      
-        st.rerun()
-
+  
 if __name__ == "__main__":
     main()
