@@ -53,6 +53,17 @@ def data_upload_section():
     st.markdown("Upload your stock data files for comprehensive Phase 1 & Phase 2 analysis")
     
     processor = DataProcessor()
+
+
+# Clear Analysis Button
+    if st.button("🗑️ Clear All Analysis", help="Reset all analysis data and uploaded files"):
+        st.session_state.clear()
+        st.session_state.current_data = None
+        st.session_state.previous_data = None
+        st.session_state.comparative_analysis = None
+        st.session_state.upload_key += 1  # Increment to reset file uploaders
+        st.success("✅ All analysis data and uploaded files cleared! Ready for new uploads.")
+        st.experimental_rerun()  # Force rerun to refresh UI
     
     # Current Data Upload
     st.subheader("📊 Current Stock Data")
