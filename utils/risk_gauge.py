@@ -10,11 +10,6 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional
 import streamlit as st
-import logging
-
-# Set up logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
 class RiskGauge:
     """Create professional risk gauge meters and advanced visualizations."""
@@ -284,160 +279,60 @@ class RiskGauge:
     def create_advanced_candlestick(self, data: pd.DataFrame) -> go.Figure:
         """Create professional candlestick chart with technical indicators."""
         
-        # --- Enhanced Validation Start ---
-        logger.debug("Starting candlestick chart creation")
-        if data.empty:
-            logger.warning("Input DataFrame is empty")
-            st.warning("Cannot create candlestick chart: Input data is empty")
+        if data.empty or 'Date' not in data.columns:
             return go.Figure()
         
-        # Case-insensitive column matching
-        data = data.copy()
-        data.columns = data.columns.str.strip().str.lower()
+        fig = go.Figure()
         
-        required_cols = ['open', 'high', 'low', 'close', 'volume']
-        date_candidates = ['date', 'datetime']
-        date_col = None
+        # Add candlestick
+        fig.add_trace(go.Candlestick(
+            x=data['Date'],
+            open=data['Open'],
+            high=data['High'],
+            low=data['Low'],
+            close=data['Close'],
+            name="Price",
+            increasing_line_color='#00ff00',
+            decreasing_line_color='#ff0000'
+        ))
         
-        # Find date column
-        for col in date_candidates:
-            if col in data.columns:
-                date_col = col
-                break
+        # Add volume subplot
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.03,
+            subplot_titles=('Stock Price', 'Volume'),
+            row_width=[0.7, 0.3]
+        )
         
-        if date_col is None:
-            logger.warning("No 'date' or 'datetime' column found")
-            st.warning("Cannot create candlestick chart: No 'date' or 'datetime' column found")
-            return go.Figure()
+        fig.add_trace(go.Candlestick(
+            x=data['Date'],
+            open=data['Open'],
+            high=data['High'],
+            low=data['Low'],
+            close=data['Close'],
+            name="Price"
+        ), row=1, col=1)
         
-        if not all(col in data.columns for col in required_cols):
-            missing_cols = set(required_cols) - set(data.columns)
-            logger.warning(f"Missing required columns: {missing_cols}")
-            st.warning(f"Cannot create candlestick chart: Missing columns {missing_cols}")
-            return go.Figure()
+        fig.add_trace(go.Bar(
+            x=data['Date'],
+            y=data['Volume'],
+            name="Volume",
+            marker_color='lightblue'
+        ), row=2, col=1)
         
-        # Handle case where date is in index
-        if data[date_col].isna().all() and pd.api.types.is_datetime64_any_dtype(data.index):
-            logger.debug("Date column is NaN, using index as date")
-            data[date_col] = data.index
-            data.reset_index(drop=True, inplace=True)
+        fig.update_layout(
+            title='Professional Candlestick Analysis',
+            yaxis_title='Stock Price (USD)',
+            xaxis_rangeslider_visible=False,
+            height=600,
+            showlegend=False
+        )
         
-        # Convert date column to datetime
-        logger.debug(f"Converting {date_col} to datetime")
-        try:
-            data[date_col] = pd.to_datetime(data[date_col], errors='coerce')
-        except Exception as e:
-            logger.error(f"Date conversion failed: {str(e)}")
-            st.warning(f"Cannot create candlestick chart: Invalid date format ({str(e)})")
-            return go.Figure()
+        # Format dates
+        fig.update_xaxes(
+            tickformat='%m-%d-%y',
+            tickangle=45
+        )
         
-        if data[date_col].isna().all():
-            logger.warning("All date values are invalid after conversion")
-            st.warning("Cannot create candlestick chart: All date values are invalid")
-            return go.Figure()
-        
-        # Ensure price and volume columns are numeric
-        for col in required_cols:
-            try:
-                data[col] = pd.to_numeric(data[col], errors='coerce')
-            except Exception as e:
-                logger.error(f"Failed to convert {col} to numeric: {str(e)}")
-                st.warning(f"Cannot create candlestick chart: Invalid data in {col} ({str(e)})")
-                return go.Figure()
-        
-        # Clean data by removing rows with NaN
-        logger.debug("Cleaning data by removing NaN values")
-        data = data.dropna(subset=required_cols + [date_col])
-        if data.empty:
-            logger.warning("DataFrame is empty after cleaning")
-            st.warning("Cannot create candlestick chart: No valid data after cleaning")
-            return go.Figure()
-        
-        # Validate positive price values
-        price_cols = ['open', 'high', 'low', 'close']
-        if (data[price_cols] <= 0).any().any():
-            logger.warning("Found non-positive values in price columns")
-            st.warning("Cannot create candlestick chart: Non-positive values in price columns")
-            return go.Figure()
-        
-        # Log sample data for debugging
-        logger.debug(f"Final data shape: {data.shape}")
-        logger.debug(f"Sample data:\n{data.head().to_string()}")
-        logger.debug(f"Date column dtype: {data[date_col].dtype}")
-        logger.debug(f"Price columns dtypes: {data[price_cols].dtypes}")
-        # --- Enhanced Validation End ---
-        
-        # Create subplots for candlestick and volume
-        try:
-            logger.debug("Creating subplots")
-            fig = make_subplots(
-                rows=2, cols=1,
-                shared_xaxes=True,
-                vertical_spacing=0.03,
-                subplot_titles=('Stock Price', 'Volume'),
-                row_heights=[0.7, 0.3]
-            )
-            
-            # Add candlestick trace
-            logger.debug("Adding candlestick trace")
-            candlestick_trace = go.Candlestick(
-                x=data[date_col],
-                open=data['open'],
-                high=data['high'],
-                low=data['low'],
-                close=data['close'],
-                name="Price",
-                increasing_line_color='#00ff00',
-                decreasing_line_color='#ff0000',
-                hovertemplate=(
-                    '<b>Date:</b> %{x|%m-%d-%y}<br>' +
-                    '<b>Open:</b> $%{open:.2f}<br>' +
-                    '<b>High:</b> $%{high:.2f}<br>' +
-                    '<b>Low:</b> $%{low:.2f}<br>' +
-                    '<b>Close:</b> $%{close:.2f}<extra></extra>'
-                )
-            )
-            fig.add_trace(candlestick_trace, row=1, col=1)
-            
-            # Add volume bar trace
-            logger.debug("Adding volume trace")
-            volume_trace = go.Bar(
-                x=data[date_col],
-                y=data['volume'],
-                name="Volume",
-                marker_color='lightblue',
-                hovertemplate=(
-                    '<b>Date:</b> %{x|%m-%d-%y}<br>' +
-                    '<b>Volume:</b> %{y:,.0f}<extra></extra>'
-                )
-            )
-            fig.add_trace(volume_trace, row=2, col=1)
-            
-            # Update layout
-            logger.debug("Updating figure layout")
-            fig.update_layout(
-                title='Professional Candlestick Analysis',
-                yaxis_title='Stock Price (USD)',
-                yaxis2_title='Volume',
-                xaxis_rangeslider_visible=False,
-                height=600,
-                showlegend=False
-            )
-            
-            # Update x-axis formatting
-            fig.update_xaxes(
-                type='date',
-                tickformat='%m-%d-%y',
-                tickangle=45,
-                hoverformat='%m-%d-%y',
-                showgrid=True,
-                rangeslider_visible=False
-            )
-            
-            logger.debug("Candlestick chart creation completed")
-            return fig
-            
-        except Exception as e:
-            logger.error(f"Failed to create candlestick chart: {str(e)}")
-            st.warning(f"Cannot create candlestick chart: {str(e)}")
-            return go.Figure()
+        return fig
