@@ -10,6 +10,11 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional
 import streamlit as st
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 class RiskGauge:
     """Create professional risk gauge meters and advanced visualizations."""
@@ -279,26 +284,61 @@ class RiskGauge:
     def create_advanced_candlestick(self, data: pd.DataFrame) -> go.Figure:
         """Create professional candlestick chart with technical indicators."""
         
-        # --- Correction Start: Added data validation and datetime conversion ---
-        if data.empty or not all(col in data.columns for col in ['Open', 'High', 'Low', 'Close', 'Volume']):
+        # --- Enhanced Validation Start ---
+        logger.debug("Starting candlestick chart creation")
+        if data.empty:
+            logger.warning("Input DataFrame is empty")
+            return go.Figure()
+        
+        required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+        if not all(col in data.columns for col in required_cols):
+            logger.warning(f"Missing required columns: {set(required_cols) - set(data.columns)}")
             return go.Figure()
         
         # Ensure Date or Datetime column exists
         date_col = 'Date' if 'Date' in data.columns else 'Datetime' if 'Datetime' in data.columns else None
         if date_col is None:
+            logger.warning("No 'Date' or 'Datetime' column found")
             return go.Figure()
         
-        # Convert date column to datetime and ensure it's not the index
+        # Create a copy to avoid modifying input data
         data = data.copy()
-        data[date_col] = pd.to_datetime(data[date_col], errors='coerce')
-        if data[date_col].isna().any():
-            return go.Figure()  # Return empty figure if date conversion fails
+        
+        # Convert date column to datetime
+        logger.debug(f"Converting {date_col} to datetime")
+        try:
+            data[date_col] = pd.to_datetime(data[date_col], errors='coerce')
+        except Exception as e:
+            logger.error(f"Date conversion failed: {str(e)}")
+            return go.Figure()
+        
+        if data[date_col].isna().all():
+            logger.warning("All date values are invalid after conversion")
+            return go.Figure()
+        
+        # Ensure price and volume columns are numeric
+        for col in required_cols:
+            try:
+                data[col] = pd.to_numeric(data[col], errors='coerce')
+            except Exception as e:
+                logger.error(f"Failed to convert {col} to numeric: {str(e)}")
+                return go.Figure()
         
         # Clean data by removing rows with NaN in required columns
-        data = data.dropna(subset=['Open', 'High', 'Low', 'Close', 'Volume', date_col])
+        logger.debug("Cleaning data by removing NaN values")
+        data = data.dropna(subset=required_cols + [date_col])
         if data.empty:
+            logger.warning("DataFrame is empty after cleaning")
             return go.Figure()
-        # --- Correction End ---
+        
+        # Validate that all price values are positive
+        price_cols = ['Open', 'High', 'Low', 'Close']
+        if (data[price_cols] <= 0).any().any():
+            logger.warning("Found non-positive values in price columns")
+            return go.Figure()
+        
+        logger.debug(f"Final data shape after cleaning: {data.shape}")
+        # --- Enhanced Validation End ---
         
         # Create subplots for candlestick and volume
         fig = make_subplots(
@@ -310,6 +350,7 @@ class RiskGauge:
         )
         
         # Add candlestick trace
+        logger.debug("Adding candlestick trace")
         fig.add_trace(go.Candlestick(
             x=data[date_col],
             open=data['Open'],
@@ -319,7 +360,6 @@ class RiskGauge:
             name="Price",
             increasing_line_color='#00ff00',
             decreasing_line_color='#ff0000',
-            # --- Correction Start: Added custom hover template ---
             hovertemplate=(
                 '<b>Date:</b> %{x|%m-%d-%y}<br>' +
                 '<b>Open:</b> $%{open:.2f}<br>' +
@@ -327,24 +367,23 @@ class RiskGauge:
                 '<b>Low:</b> $%{low:.2f}<br>' +
                 '<b>Close:</b> $%{close:.2f}<extra></extra>'
             )
-            # --- Correction End ---
         ), row=1, col=1)
         
         # Add volume bar trace
+        logger.debug("Adding volume trace")
         fig.add_trace(go.Bar(
             x=data[date_col],
             y=data['Volume'],
             name="Volume",
             marker_color='lightblue',
-            # --- Correction Start: Added hover template for volume ---
             hovertemplate=(
                 '<b>Date:</b> %{x|%m-%d-%y}<br>' +
                 '<b>Volume:</b> %{y:,.0f}<extra></extra>'
             )
-            # --- Correction End ---
         ), row=2, col=1)
         
         # Update layout
+        logger.debug("Updating figure layout")
         fig.update_layout(
             title='Professional Candlestick Analysis',
             yaxis_title='Stock Price (USD)',
@@ -354,7 +393,7 @@ class RiskGauge:
             showlegend=False
         )
         
-        # --- Correction Start: Enhanced x-axis formatting ---
+        # Update x-axis formatting
         fig.update_xaxes(
             type='date',
             tickformat='%m-%d-%y',
@@ -363,6 +402,6 @@ class RiskGauge:
             showgrid=True,
             rangeslider_visible=False
         )
-        # --- Correction End ---
         
+        logger.debug("Candlestick chart creation completed")
         return fig
