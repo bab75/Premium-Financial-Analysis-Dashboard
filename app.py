@@ -176,7 +176,7 @@ def data_upload_section():
         st.markdown("---")
         st.subheader("📊 Data Status Dashboard")
         
-        status_col1, status_col2, status_col3 = st.columns(3)
+        status_col1, status_col2 = st.columns(2)
         
         with status_col1:
             if st.session_state.current_data is not None:
@@ -209,23 +209,7 @@ def data_upload_section():
                     <p>Upload for Phase 1</p>
                 </div>
                 """, unsafe_allow_html=True)
-        
-        with status_col3:
-            if st.session_state.historical_data is not None:
-                st.markdown("""
-                <div class="success-card">
-                    <h4>✅ Historical Data</h4>
-                    <p>Ready for analysis</p>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown("""
-                <div class="metric-card">
-                    <h4>📈 Historical Data</h4>
-                    <p>Optional for advanced analysis</p>
-                </div>
-                """, unsafe_allow_html=True)
-
+              
 def phase1_comparative_analysis_section():
     """Phase 1: Comprehensive comparative analysis between current and previous stock data."""
     st.header("📊 Phase 1: Comparative Analysis")
