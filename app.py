@@ -170,42 +170,7 @@ def data_upload_section():
             if st.button("🚀 Start Analysis", type="primary", use_container_width=True):
                 st.success("✅ Analysis ready! Navigate to Phase 1: Comparative Analysis to see results.")
                 st.balloons()
-    
-    # Historical Data Upload
-    st.subheader("📉 Historical Price Data (Optional)")
-    historical_file = st.file_uploader(
-        "Upload Historical Price Data (Excel/CSV)",
-        type=['xlsx', 'xls', 'csv'],
-        key="historical_data_file",
-        help="Upload historical price data with Date, Open, High, Low, Close, Volume columns"
-    )
-    
-    if historical_file is not None:
-        try:
-            with st.spinner("Processing historical data..."):
-                # Use DataProcessor for historical data as it's specialized for that format
-                fallback_processor = DataProcessor()
-                historical_data, extracted_symbol = fallback_processor.process_historical_data(historical_file)
-                
-                if historical_data is not None:
-                    st.session_state.historical_data = historical_data
-                    if extracted_symbol:
-                        st.session_state.selected_symbol = extracted_symbol
-                    
-                    st.success(f"✅ Historical data loaded successfully! ({len(historical_data)} data points)")
-                    
-                    if extracted_symbol:
-                        st.info(f"📊 Detected symbol: {extracted_symbol}")
-                    
-                    # Show sample data
-                    with st.expander("📋 Historical Data Preview"):
-                        st.dataframe(historical_data.head(), use_container_width=True)
-                else:
-                    st.error("Failed to process historical data file. Please check the format.")
-                    
-        except Exception as e:
-            st.error(f"Error processing historical data: {str(e)}")
-    
+        
     # Data Status Dashboard
     if st.session_state.current_data is not None or st.session_state.previous_data is not None:
         st.markdown("---")
