@@ -4,20 +4,13 @@ import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 from typing import Optional
-import os
-import uuid
 
 class Visualizations:
     """Create interactive visualizations for financial data analysis."""
     
-    def __init__(self, daily_data: Optional[pd.DataFrame] = None, historical_data: Optional[pd.DataFrame] = None, output_dir: str = "charts"):
+    def __init__(self, daily_data: Optional[pd.DataFrame] = None, historical_data: Optional[pd.DataFrame] = None):
         self.daily_data = daily_data
         self.historical_data = historical_data
-        self.output_dir = output_dir
-        
-        # Create output directory if it doesn't exist
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
         
         # Color schemes for financial charts
         self.colors = {
@@ -28,26 +21,6 @@ class Visualizations:
             'sectors': px.colors.qualitative.Set3
         }
     
-    def save_chart_as_html(self, fig: go.Figure, filename: str) -> None:
-        """Save a Plotly figure as an interactive HTML file."""
-        if fig is None or len(fig.data) == 0:
-            print(f"Cannot save chart '{filename}': Figure is empty or invalid.")
-            return
-        
-        # Ensure the filename ends with .html
-        if not filename.endswith('.html'):
-            filename += '.html'
-        
-        # Construct full file path
-        filepath = os.path.join(self.output_dir, filename)
-        
-        # Save the figure as HTML
-        try:
-            fig.write_html(filepath, include_plotlyjs='cdn')
-            print(f"Chart saved successfully as '{filepath}'")
-        except Exception as e:
-            print(f"Error saving chart '{filename}': {str(e)}")
-
     def create_market_cap_chart(self) -> go.Figure:
         """Create bar chart of top 10 stocks by market cap."""
         if self.daily_data is None or self.daily_data.empty:
@@ -95,12 +68,6 @@ class Visualizations:
         
         return fig
     
-    def create_and_save_market_cap_chart(self, filename: str = "market_cap_chart.html") -> go.Figure:
-        """Create and save market cap chart as HTML."""
-        fig = self.create_market_cap_chart()
-        self.save_chart_as_html(fig, filename)
-        return fig
-
     def create_sector_pie_chart(self) -> go.Figure:
         """Create pie chart showing sector distribution."""
         if self.daily_data is None or self.daily_data.empty or 'Sector' not in self.daily_data.columns:
@@ -135,12 +102,6 @@ class Visualizations:
         
         return fig
     
-    def create_and_save_sector_pie_chart(self, filename: str = "sector_pie_chart.html") -> go.Figure:
-        """Create and save sector pie chart as HTML."""
-        fig = self.create_sector_pie_chart()
-        self.save_chart_as_html(fig, filename)
-        return fig
-
     def create_correlation_heatmap(self) -> go.Figure:
         """Create correlation heatmap for numerical columns."""
         if self.daily_data is None or self.daily_data.empty:
@@ -180,12 +141,6 @@ class Visualizations:
         
         return fig
     
-    def create_and_save_correlation_heatmap(self, filename: str = "correlation_heatmap.html") -> go.Figure:
-        """Create and save correlation heatmap as HTML."""
-        fig = self.create_correlation_heatmap()
-        self.save_chart_as_html(fig, filename)
-        return fig
-
     def create_performance_volume_scatter(self) -> go.Figure:
         """Create scatter plot of % Change vs Volume."""
         if self.daily_data is None or self.daily_data.empty:
@@ -287,12 +242,6 @@ class Visualizations:
         
         return fig
     
-    def create_and_save_performance_volume_scatter(self, filename: str = "performance_volume_scatter.html") -> go.Figure:
-        """Create and save performance vs volume scatter plot as HTML."""
-        fig = self.create_performance_volume_scatter()
-        self.save_chart_as_html(fig, filename)
-        return fig
-
     def create_candlestick_chart(self) -> go.Figure:
         """Create candlestick chart for historical data."""
         if self.historical_data is None or self.historical_data.empty:
@@ -348,12 +297,6 @@ class Visualizations:
         
         return fig
     
-    def create_and_save_candlestick_chart(self, filename: str = "candlestick_chart.html") -> go.Figure:
-        """Create and save candlestick chart as HTML."""
-        fig = self.create_candlestick_chart()
-        self.save_chart_as_html(fig, filename)
-        return fig
-
     def create_price_trends_chart(self) -> go.Figure:
         """Create price trends chart showing Close and Adj Close."""
         if self.historical_data is None or self.historical_data.empty or 'Close' not in self.historical_data.columns:
@@ -415,12 +358,6 @@ class Visualizations:
         
         return fig
     
-    def create_and_save_price_trends_chart(self, filename: str = "price_trends_chart.html") -> go.Figure:
-        """Create and save price trends chart as HTML."""
-        fig = self.create_price_trends_chart()
-        self.save_chart_as_html(fig, filename)
-        return fig
-
     def create_volume_chart(self) -> go.Figure:
         """Create volume analysis chart."""
         if self.historical_data is None or self.historical_data.empty or 'Volume' not in self.historical_data.columns or 'Close' not in self.historical_data.columns:
@@ -516,12 +453,6 @@ class Visualizations:
         
         return fig
     
-    def create_and_save_volume_chart(self, filename: str = "volume_chart.html") -> go.Figure:
-        """Create and save volume analysis chart as HTML."""
-        fig = self.create_volume_chart()
-        self.save_chart_as_html(fig, filename)
-        return fig
-
     def create_sector_performance_chart(self) -> go.Figure:
         """Create sector performance comparison chart."""
         if self.daily_data is None or self.daily_data.empty or 'Sector' not in self.daily_data.columns:
@@ -581,12 +512,6 @@ class Visualizations:
         
         return fig
     
-    def create_and_save_sector_performance_chart(self, filename: str = "sector_performance_chart.html") -> go.Figure:
-        """Create and save sector performance chart as HTML."""
-        fig = self.create_sector_performance_chart()
-        self.save_chart_as_html(fig, filename)
-        return fig
-
     def create_market_overview_dashboard(self) -> go.Figure:
         """Create a comprehensive market overview dashboard."""
         if self.daily_data is None or self.daily_data.empty:
@@ -657,10 +582,4 @@ class Visualizations:
             height=800
         )
         
-        return fig
-    
-    def create_and_save_market_overview_dashboard(self, filename: str = "market_overview_dashboard.html") -> go.Figure:
-        """Create and save market overview dashboard as HTML."""
-        fig = self.create_market_overview_dashboard()
-        self.save_chart_as_html(fig, filename)
         return fig
