@@ -59,6 +59,8 @@ class EnhancedComparativeAnalysis:
                 suffixes=('_current', '_previous')
             )
             
+            st.write(f"DEBUG: Merged result has {len(merged)} rows")
+            
             if merged.empty:
                 st.warning("No matching symbols found between datasets")
                 return
@@ -97,10 +99,32 @@ class EnhancedComparativeAnalysis:
     
     def _find_symbol_column(self, df: pd.DataFrame) -> Optional[str]:
         """Find symbol column with flexible naming."""
-        candidates = ['Symbol', 'symbol', 'SYMBOL', 'Ticker', 'ticker', 'Stock']
-        for col in candidates:
+        possible_names = [
+            'Symbol', 'symbol', 'SYMBOL', 
+            'Ticker', 'ticker', 'TICKER', 
+            'Stock', 'stock', 'STOCK',
+            'Code', 'code', 'CODE',
+            'Name', 'name', 'NAME',
+            'Company', 'company', 'COMPANY',
+            'Security', 'security', 'SECURITY'
+        ]
+        
+        # First try exact matches
+        for col in possible_names:
             if col in df.columns:
                 return col
+        
+        # Then try partial matches
+        for col in df.columns:
+            col_lower = col.lower()
+            if any(name.lower() in col_lower for name in ['symbol', 'ticker', 'stock', 'code', 'name', 'company']):
+                return col
+        
+        # If no match found, use the first column as fallback
+        if len(df.columns) > 0:
+            st.warning(f"No symbol column found, using first column: {df.columns[0]}")
+            return df.columns[0]
+        
         return None
     
     def _find_price_column(self, df: pd.DataFrame, suffix: str) -> Optional[str]:
@@ -147,6 +171,14 @@ class EnhancedComparativeAnalysis:
         sector_col = sector_cols[0]
         sectors = self.merged_data[sector_col].dropna().unique().tolist()
         return ['All'] + sorted(sectors)
+    
+    def get_all_symbols(self) -> List[str]:
+        """Get list of all available symbols for dropdown selection."""
+        if self.merged_data is None or self.merged_data.empty:
+            return []
+        
+        symbols = self.merged_data['Symbol'].dropna().unique().tolist()
+        return sorted(symbols)
     
     def get_performance_summary(self) -> Dict[str, Any]:
         """Generate performance summary."""
