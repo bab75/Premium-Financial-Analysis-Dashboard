@@ -37,10 +37,10 @@ st.set_page_config(
 with st.sidebar:
     st.header("🔧 Controls")
     if st.button("🗑️ Clear All Data", type="secondary", help="Refresh page to clear all data and start over"):
-        # Clear all session state
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        st.rerun()
+        st.write("Clearing session state...")  # Debugging output
+        st.session_state.clear()  # Clear all session state
+        st.cache_data.clear()  # Clear cached data (optional, if caching is used)
+        st.rerun()  # Rerun the app
 
 # Initialize session state
 if 'current_data' not in st.session_state:
