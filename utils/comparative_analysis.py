@@ -74,42 +74,42 @@ class ComparativeAnalysis:
                 elif 'Net Change_current' in col:
                     change_col = col
             
-            if change_pct_col:
-                # Use existing percentage change data
-                st.info(f"Using existing change data from column: {change_pct_col}")
-                merged['Price_Change_Pct'] = self._clean_numeric_column(merged[change_pct_col])
+            # Always calculate fresh comparisons using Last Sale values (investment logic)
+            price_col_current = self._find_price_column(merged, '_current')
+            price_col_previous = self._find_price_column(merged, '_previous')
+            
+            if price_col_current and price_col_previous:
+                # Convert price columns to numeric with improved cleaning
+                merged[price_col_current] = self._clean_numeric_column(merged[price_col_current])
+                merged[price_col_previous] = self._clean_numeric_column(merged[price_col_previous])
                 
-                # Add profit/loss classification
-                merged['Profit_Loss'] = merged['Price_Change_Pct'].apply(
+                # Calculate price changes using investment logic (Current - Previous)
+                merged['Price_Change'] = merged[price_col_current] - merged[price_col_previous]
+                merged['Price_Change_Pct'] = ((merged[price_col_current] - merged[price_col_previous]) / 
+                                            merged[price_col_previous].replace(0, np.nan)) * 100
+                
+                # Check data quality
+                valid_current = merged[price_col_current].notna().sum()
+                valid_previous = merged[price_col_previous].notna().sum()
+                valid_changes = merged['Price_Change'].notna().sum()
+                
+                if valid_current == 0 or valid_previous == 0:
+                    st.error("Price data could not be processed. Please check that your files contain numeric price values.")
+                    return
+                elif valid_changes == 0:
+                    st.warning("No valid price changes calculated. This may indicate identical data in both files.")
+                else:
+                    st.success(f"Successfully calculated price changes for {valid_changes} stocks.")
+                
+                # Add profit/loss classification (positive = profit, negative = loss)
+                merged['Profit_Loss'] = merged['Price_Change'].apply(
                     lambda x: 'Profit' if x > 0 else ('Loss' if x < 0 else 'Neutral') if pd.notna(x) else 'Unknown'
                 )
-                
-                if change_col:
-                    merged['Price_Change'] = self._clean_numeric_column(merged[change_col])
             else:
-                # Fallback to calculating from price columns
-                price_col_current = self._find_price_column(merged, '_current')
-                price_col_previous = self._find_price_column(merged, '_previous')
-                
-                if price_col_current and price_col_previous:
-                    # Convert price columns to numeric, handling different formats
-                    merged[price_col_current] = self._clean_numeric_column(merged[price_col_current])
-                    merged[price_col_previous] = self._clean_numeric_column(merged[price_col_previous])
-                    
-                    # Calculate price changes
-                    merged['Price_Change'] = merged[price_col_current] - merged[price_col_previous]
-                    merged['Price_Change_Pct'] = ((merged[price_col_current] - merged[price_col_previous]) / 
-                                                merged[price_col_previous].replace(0, np.nan)) * 100
-                    
-                    # Add profit/loss classification
-                    merged['Profit_Loss'] = merged['Price_Change_Pct'].apply(
-                        lambda x: 'Profit' if x > 0 else ('Loss' if x < 0 else 'Neutral') if pd.notna(x) else 'Unknown'
-                    )
-                else:
-                    st.warning(f"Neither change columns nor price columns found. Available columns: {list(merged.columns)}")
-                    return
+                st.warning(f"Price columns (Last Sale) not found. Available columns: {list(merged.columns)}")
+                return
             
-            # Find and process volume columns
+            # Find and process volume columns with difference calculations
             volume_col_current = self._find_volume_column(merged, '_current')
             volume_col_previous = self._find_volume_column(merged, '_previous')
             
@@ -117,11 +117,12 @@ class ComparativeAnalysis:
                 merged[volume_col_current] = self._clean_numeric_column(merged[volume_col_current])
                 merged[volume_col_previous] = self._clean_numeric_column(merged[volume_col_previous])
                 
-                merged['Volume_Change'] = merged[volume_col_current] - merged[volume_col_previous]
+                # Calculate volume difference (Current - Previous)
+                merged['Volume_Difference'] = merged[volume_col_current] - merged[volume_col_previous]
                 merged['Volume_Change_Pct'] = ((merged[volume_col_current] - merged[volume_col_previous]) / 
                                              merged[volume_col_previous].replace(0, np.nan)) * 100
             
-            # Find and process market cap columns
+            # Find and process market cap columns with difference calculations
             mcap_col_current = self._find_market_cap_column(merged, '_current')
             mcap_col_previous = self._find_market_cap_column(merged, '_previous')
             
@@ -129,7 +130,8 @@ class ComparativeAnalysis:
                 merged[mcap_col_current] = self._clean_numeric_column(merged[mcap_col_current])
                 merged[mcap_col_previous] = self._clean_numeric_column(merged[mcap_col_previous])
                 
-                merged['MarketCap_Change'] = merged[mcap_col_current] - merged[mcap_col_previous]
+                # Calculate market cap difference (Current - Previous)
+                merged['MarketCap_Difference'] = merged[mcap_col_current] - merged[mcap_col_previous]
                 merged['MarketCap_Change_Pct'] = ((merged[mcap_col_current] - merged[mcap_col_previous]) / 
                                                 merged[mcap_col_previous].replace(0, np.nan)) * 100
             
@@ -214,26 +216,35 @@ class ComparativeAnalysis:
         return None
     
     def _clean_numeric_column(self, series: pd.Series) -> pd.Series:
-        """Clean and convert column to numeric values."""
-        if series.dtype in ['object', 'string']:
-            # Handle percentage values specifically
-            cleaned = series.astype(str).str.strip()
-            
-            # Check if it's a percentage column
-            is_percentage = cleaned.str.contains('%', na=False).any()
-            
-            if is_percentage:
-                # Remove % sign and convert to float
-                cleaned = cleaned.str.replace('%', '', regex=False)
-                cleaned = cleaned.str.replace(',', '', regex=False)
-                cleaned = pd.to_numeric(cleaned, errors='coerce')
-            else:
-                # Remove currency symbols, commas, and other non-numeric characters
-                cleaned = cleaned.str.replace(r'[$,€£¥₹]', '', regex=True)
-                cleaned = cleaned.str.replace(r'[^\d.-]', '', regex=True)
-                cleaned = pd.to_numeric(cleaned, errors='coerce')
+        """Clean and convert column to numeric values with robust handling."""
+        # Convert to string first for consistent processing
+        cleaned = series.astype(str).str.strip()
+        
+        # Replace common non-numeric patterns
+        cleaned = cleaned.str.replace('nan', '', regex=False)
+        cleaned = cleaned.str.replace('NaN', '', regex=False)
+        cleaned = cleaned.str.replace('None', '', regex=False)
+        cleaned = cleaned.str.replace('null', '', regex=False)
+        
+        # Check if it's a percentage column
+        is_percentage = cleaned.str.contains('%', na=False).any()
+        
+        if is_percentage:
+            # Remove % sign and convert to float
+            cleaned = cleaned.str.replace('%', '', regex=False)
+            cleaned = cleaned.str.replace(',', '', regex=False)
+            cleaned = cleaned.str.replace(' ', '', regex=False)
         else:
-            cleaned = pd.to_numeric(series, errors='coerce')
+            # Remove currency symbols and formatting
+            cleaned = cleaned.str.replace('$', '', regex=False)
+            cleaned = cleaned.str.replace(',', '', regex=False)
+            cleaned = cleaned.str.replace(' ', '', regex=False)
+            cleaned = cleaned.str.replace('(', '-', regex=False)
+            cleaned = cleaned.str.replace(')', '', regex=False)
+        
+        # Convert to numeric, handling empty strings
+        cleaned = cleaned.replace('', np.nan)
+        cleaned = pd.to_numeric(cleaned, errors='coerce')
         
         return cleaned
     
