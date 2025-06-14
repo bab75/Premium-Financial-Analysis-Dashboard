@@ -502,10 +502,7 @@ def phase1_comparative_analysis_section():
                     with clear_filters_col1:
                         if st.button("🔍 Search & Filter", type="primary"):
                             st.success("Filters applied!")
-                    with clear_filters_col2:
-                        if st.button("🧹 Clear Filters", type="secondary", key="clear_filters"):
-                            st.rerun()
-                
+                                    
                 # Enhanced filter row for profit/loss amounts
                 filter_col4, filter_col5 = st.columns(2)
                 
