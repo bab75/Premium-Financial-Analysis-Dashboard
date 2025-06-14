@@ -253,7 +253,7 @@ class RiskGauge:
         if data.empty:
             return go.Figure()
         
-        # Select numeric columns for validation
+        # Select numeric columns for correlation
         numeric_cols = data.select_dtypes(include=[np.number]).columns
         if len(numeric_cols) < 2:
             return go.Figure()
@@ -328,8 +328,14 @@ class RiskGauge:
             data[date_col] = pd.to_datetime(data[date_col], errors='coerce')
             # Check for epoch-like dates (e.g., 1970 or earlier)
             if (data[date_col] < pd.Timestamp('1970-01-01')).any():
-                logger.warning("Found epoch-like dates (pre-1970)")
+                logger.warning(f"Found epoch-like dates: {data[date_col].head().tolist()}")
                 st.warning("Cannot create price-volume chart: Invalid dates (pre-1970 detected)")
+                return go.Figure()
+            # Check for sufficient unique dates
+            unique_dates = data[date_col].nunique()
+            if unique_dates < 2:
+                logger.warning(f"Only {unique_dates} unique dates found")
+                st.warning("Cannot create price-volume chart: Insufficient unique dates")
                 return go.Figure()
         except Exception as e:
             logger.error(f"Date conversion failed: {str(e)}")
@@ -358,10 +364,14 @@ class RiskGauge:
             st.warning("Cannot create price-volume chart: No valid data after cleaning")
             return go.Figure()
         
-        # Validate positive close price
-        if (data['close'] <= 0).any():
-            logger.warning("Found non-positive values in close column")
-            st.warning("Cannot create price-volume chart: Non-positive values in close column")
+        # Validate data variability
+        if data['close'].nunique() < 2:
+            logger.warning("Constant or insufficient 'close' values")
+            st.warning("Cannot create price-volume chart: Constant or insufficient 'close' values")
+            return go.Figure()
+        if data['volume'].nunique() < 2:
+            logger.warning("Constant or insufficient 'volume' values")
+            st.warning("Cannot create price-volume chart: Constant or insufficient 'volume' values")
             return go.Figure()
         
         # Log converted date values
