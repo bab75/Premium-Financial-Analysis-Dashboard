@@ -253,7 +253,7 @@ class RiskGauge:
         if data.empty:
             return go.Figure()
         
-        # Select numeric columns for correlation
+        # Select numeric columns for validation
         numeric_cols = data.select_dtypes(include=[np.number]).columns
         if len(numeric_cols) < 2:
             return go.Figure()
@@ -322,10 +322,15 @@ class RiskGauge:
             data[date_col] = data.index
             data.reset_index(drop=True, inplace=True)
         
-        # Convert date column to datetime
-        logger.debug(f"Converting {date_col} to datetime")
+        # Convert date column to datetime with explicit format check
+        logger.debug(f"Raw date values: {data[date_col].head().tolist()}")
         try:
             data[date_col] = pd.to_datetime(data[date_col], errors='coerce')
+            # Check for epoch-like dates (e.g., 1970 or earlier)
+            if (data[date_col] < pd.Timestamp('1970-01-01')).any():
+                logger.warning("Found epoch-like dates (pre-1970)")
+                st.warning("Cannot create price-volume chart: Invalid dates (pre-1970 detected)")
+                return go.Figure()
         except Exception as e:
             logger.error(f"Date conversion failed: {str(e)}")
             st.warning(f"Cannot create price-volume chart: Invalid date format ({str(e)})")
@@ -358,6 +363,9 @@ class RiskGauge:
             logger.warning("Found non-positive values in close column")
             st.warning("Cannot create price-volume chart: Non-positive values in close column")
             return go.Figure()
+        
+        # Log converted date values
+        logger.debug(f"Converted date values: {data[date_col].head().tolist()}")
         
         # Log sample data
         logger.debug(f"Final data shape: {data.shape}")
