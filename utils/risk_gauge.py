@@ -10,11 +10,6 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional
 import streamlit as st
-import logging
-
-# Set up logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
 class RiskGauge:
     """Create professional risk gauge meters and advanced visualizations."""
@@ -281,177 +276,63 @@ class RiskGauge:
         
         return fig
     
-    def create_price_volume_line(self, data: pd.DataFrame) -> go.Figure:
-        """Create a line chart for closing price with a volume bar subplot."""
+    def create_advanced_candlestick(self, data: pd.DataFrame) -> go.Figure:
+        """Create professional candlestick chart with technical indicators."""
         
-        logger.debug("Starting price-volume line chart creation")
-        if data.empty:
-            logger.warning("Input DataFrame is empty")
-            st.warning("Cannot create price-volume chart: Input data is empty")
+        if data.empty or 'Date' not in data.columns:
             return go.Figure()
         
-        # Normalize column names for case-insensitive matching
-        data = data.copy()
-        data.columns = data.columns.str.strip().str.lower()
+        fig = go.Figure()
         
-        # Required columns
-        required_cols = ['close', 'volume']
-        date_candidates = ['date', 'datetime']
-        date_col = None
+        # Add candlestick
+        fig.add_trace(go.Candlestick(
+            x=data['Date'],
+            open=data['Open'],
+            high=data['High'],
+            low=data['Low'],
+            close=data['Close'],
+            name="Price",
+            increasing_line_color='#00ff00',
+            decreasing_line_color='#ff0000'
+        ))
         
-        # Find date column
-        for col in date_candidates:
-            if col in data.columns:
-                date_col = col
-                break
+        # Add volume subplot
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.03,
+            subplot_titles=('Stock Price', 'Volume'),
+            row_width=[0.7, 0.3]
+        )
         
-        if date_col is None:
-            logger.warning("No 'date' or 'datetime' column found")
-            st.warning("Cannot create price-volume chart: No 'date' or 'datetime' column found")
-            return go.Figure()
+        fig.add_trace(go.Candlestick(
+            x=data['Date'],
+            open=data['Open'],
+            high=data['High'],
+            low=data['Low'],
+            close=data['Close'],
+            name="Price"
+        ), row=1, col=1)
         
-        if not all(col in data.columns for col in required_cols):
-            missing_cols = set(required_cols) - set(data.columns)
-            logger.warning(f"Missing required columns: {missing_cols}")
-            st.warning(f"Cannot create price-volume chart: Missing columns {missing_cols}")
-            return go.Figure()
+        fig.add_trace(go.Bar(
+            x=data['Date'],
+            y=data['Volume'],
+            name="Volume",
+            marker_color='lightblue'
+        ), row=2, col=1)
         
-        # Handle datetime index as fallback
-        if data[date_col].isna().all() and pd.api.types.is_datetime64_any_dtype(data.index):
-            logger.debug("Date column is NaN, using index as date")
-            data[date_col] = data.index
-            data.reset_index(drop=True, inplace=True)
+        fig.update_layout(
+            title='Professional Candlestick Analysis',
+            yaxis_title='Stock Price (USD)',
+            xaxis_rangeslider_visible=False,
+            height=600,
+            showlegend=False
+        )
         
-        # Convert date column to datetime with explicit format check
-        logger.debug(f"Raw date values: {data[date_col].head().tolist()}")
-        try:
-            data[date_col] = pd.to_datetime(data[date_col], errors='coerce')
-            # Check for epoch-like dates (e.g., 1970 or earlier)
-            if (data[date_col] < pd.Timestamp('1970-01-01')).any():
-                logger.warning(f"Found epoch-like dates: {data[date_col].head().tolist()}")
-                st.warning("Cannot create price-volume chart: Invalid dates (pre-1970 detected)")
-                return go.Figure()
-            # Check for sufficient unique dates
-            unique_dates = data[date_col].nunique()
-            if unique_dates < 2:
-                logger.warning(f"Only {unique_dates} unique dates found")
-                st.warning("Cannot create price-volume chart: Insufficient unique dates")
-                return go.Figure()
-        except Exception as e:
-            logger.error(f"Date conversion failed: {str(e)}")
-            st.warning(f"Cannot create price-volume chart: Invalid date format ({str(e)})")
-            return go.Figure()
+        # Format dates
+        fig.update_xaxes(
+            tickformat='%m-%d-%y',
+            tickangle=45
+        )
         
-        if data[date_col].isna().all():
-            logger.warning("All date values are invalid after conversion")
-            st.warning("Cannot create price-volume chart: All date values are invalid")
-            return go.Figure()
-        
-        # Ensure close and volume are numeric
-        for col in required_cols:
-            try:
-                data[col] = pd.to_numeric(data[col], errors='coerce')
-            except Exception as e:
-                logger.error(f"Failed to convert {col} to numeric: {str(e)}")
-                st.warning(f"Cannot create price-volume chart: Invalid data in {col} ({str(e)})")
-                return go.Figure()
-        
-        # Clean data by removing NaN rows
-        logger.debug("Cleaning data by removing NaN values")
-        data = data.dropna(subset=required_cols + [date_col])
-        if data.empty:
-            logger.warning("DataFrame is empty after cleaning")
-            st.warning("Cannot create price-volume chart: No valid data after cleaning")
-            return go.Figure()
-        
-        # Validate data variability
-        if data['close'].nunique() < 2:
-            logger.warning("Constant or insufficient 'close' values")
-            st.warning("Cannot create price-volume chart: Constant or insufficient 'close' values")
-            return go.Figure()
-        if data['volume'].nunique() < 2:
-            logger.warning("Constant or insufficient 'volume' values")
-            st.warning("Cannot create price-volume chart: Constant or insufficient 'volume' values")
-            return go.Figure()
-        
-        # Log converted date values
-        logger.debug(f"Converted date values: {data[date_col].head().tolist()}")
-        
-        # Log sample data
-        logger.debug(f"Final data shape: {data.shape}")
-        logger.debug(f"Sample data:\n{data.head().to_string()}")
-        logger.debug(f"Date column dtype: {data[date_col].dtype}")
-        logger.debug(f"Close and volume dtypes: {data[required_cols].dtypes}")
-        
-        try:
-            # Create subplots
-            logger.debug("Creating subplots")
-            fig = make_subplots(
-                rows=2, cols=1,
-                shared_xaxes=True,
-                vertical_spacing=0.03,
-                subplot_titles=('Closing Price', 'Volume'),
-                row_heights=[0.7, 0.3]
-            )
-            
-            # Add closing price line trace
-            logger.debug("Adding closing price trace")
-            fig.add_trace(
-                go.Scatter(
-                    x=data[date_col],
-                    y=data['close'],
-                    mode='lines',
-                    name='Close Price',
-                    line=dict(color='#00ff00', width=2),
-                    hovertemplate=(
-                        '<b>Date:</b> %{x|%m-%d-%y}<br>' +
-                        '<b>Close:</b> $%{y:.2f}<extra></extra>'
-                    )
-                ),
-                row=1, col=1
-            )
-            
-            # Add volume bar trace
-            logger.debug("Adding volume trace")
-            fig.add_trace(
-                go.Bar(
-                    x=data[date_col],
-                    y=data['volume'],
-                    name='Volume',
-                    marker_color='lightblue',
-                    hovertemplate=(
-                        '<b>Date:</b> %{x|%m-%d-%y}<br>' +
-                        '<b>Volume:</b> %{y:,.0f}<extra></extra>'
-                    )
-                ),
-                row=2, col=1
-            )
-            
-            # Update layout
-            logger.debug("Updating figure layout")
-            fig.update_layout(
-                title='Professional Price and Volume Analysis',
-                yaxis_title='Closing Price (USD)',
-                yaxis2_title='Volume',
-                xaxis_rangeslider_visible=False,
-                height=600,
-                showlegend=False
-            )
-            
-            # Update x-axis formatting
-            fig.update_xaxes(
-                type='date',
-                tickformat='%m-%d-%y',
-                tickangle=45,
-                hoverformat='%m-%d-%y',
-                showgrid=True,
-                rangeslider_visible=False
-            )
-            
-            logger.debug("Price-volume line chart creation completed")
-            return fig
-            
-        except Exception as e:
-            logger.error(f"Failed to create price-volume chart: {str(e)}")
-            st.warning(f"Cannot create price-volume chart: {str(e)}")
-            return go.Figure()
+        return fig
