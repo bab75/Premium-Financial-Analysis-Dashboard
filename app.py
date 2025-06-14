@@ -32,16 +32,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# Sidebar clear functionality
-with st.sidebar:
-    st.header("🔧 Controls")
-    if st.button("🗑️ Clear All Data", type="secondary", help="Refresh page to clear all data and start over"):
-        st.write("Clearing session state...")  # Debugging output
-        st.session_state.clear()  # Clear all session state
-        st.cache_data.clear()  # Clear cached data (optional, if caching is used)
-        st.rerun()  # Rerun the app
-
 # Initialize session state
 if 'current_data' not in st.session_state:
     st.session_state.current_data = None
