@@ -33,6 +33,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Sidebar clear functionality
+with st.sidebar:
+    st.header("🔧 Controls")
+    if st.button("🗑️ Clear All Data", type="secondary", help="Refresh page to clear all data and start over"):
+        # Clear all session state
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
+
 # Initialize session state
 if 'current_data' not in st.session_state:
     st.session_state.current_data = None
@@ -42,6 +51,8 @@ if 'historical_data' not in st.session_state:
     st.session_state.historical_data = None
 if 'selected_symbol' not in st.session_state:
     st.session_state.selected_symbol = None
+if 'selected_stock_symbol' not in st.session_state:
+    st.session_state.selected_stock_symbol = None
 if 'data_quality_report' not in st.session_state:
     st.session_state.data_quality_report = None
 if 'comparative_analysis' not in st.session_state:
@@ -461,8 +472,18 @@ def phase1_comparative_analysis_section():
                 filter_col1, filter_col2, filter_col3, filter_col4 = st.columns(4)
                 
                 with filter_col1:
-                    # Stock Symbol Search
-                    search_symbol = st.text_input("Search Stock Symbol:", placeholder="e.g., AAPL, TSLA, TNXP")
+                    # Stock Symbol Search - Use dropdown with all available symbols
+                    available_symbols = comp_analysis.get_all_symbols()
+                    if available_symbols:
+                        search_symbol = st.selectbox("Select Stock Symbol:", 
+                                                   ["None"] + available_symbols, 
+                                                   index=0,
+                                                   help="Select a symbol to analyze")
+                        if search_symbol != "None":
+                            st.session_state.selected_stock_symbol = search_symbol
+                    else:
+                        search_symbol = None
+                        st.info("No symbols available")
                 
                 with filter_col2:
                     # Sector Filter
@@ -502,7 +523,23 @@ def phase1_comparative_analysis_section():
                     with clear_filters_col1:
                         if st.button("🔍 Search & Filter", type="primary"):
                             st.success("Filters applied!")
-                                    
+                    with clear_filters_col2:
+                        if st.button("🧹 Clear Filters", type="secondary", key="clear_filters"):
+                            # Reset all filter session state variables
+                            keys_to_clear = [
+                                'selected_stock_symbol',
+                                'filter_search_symbol',
+                                'filter_sector',
+                                'filter_performance',
+                                'filter_min_change',
+                                'filter_max_change'
+                            ]
+                            for key in keys_to_clear:
+                                if key in st.session_state:
+                                    del st.session_state[key]
+                            st.success("All filters cleared and reset to defaults!")
+                            st.rerun()
+                
                 # Enhanced filter row for profit/loss amounts
                 filter_col4, filter_col5 = st.columns(2)
                 
@@ -527,13 +564,10 @@ def phase1_comparative_analysis_section():
                 ].copy()
                 
                 # Apply search filter
-                if search_symbol and search_symbol.strip():
-                    search_results = comp_analysis.search_stock(search_symbol)
-                    if not search_results.empty:
-                        # Filter to show only searched stocks
-                        search_symbols = search_results['Symbol'].tolist()
-                        filtered_df = filtered_df[filtered_df['Symbol'].isin(search_symbols)]
-                        st.info(f"Filtered to show results for: {search_symbol}")
+                if search_symbol and search_symbol != "None":
+                    # Filter to show only selected stock
+                    filtered_df = filtered_df[filtered_df['Symbol'] == search_symbol]
+                    st.info(f"Filtered to show results for: {search_symbol}")
                 
                 # Apply sector filter
                 if selected_sector and selected_sector != "All":
@@ -818,6 +852,11 @@ def phase2_deep_analysis_section():
             options=available_stocks,
             help="Choose a stock from your uploaded data for comprehensive analysis"
         )
+        
+        # Save selected stock to session state for Advanced Analytics
+        if selected_stock:
+            st.session_state.selected_stock_symbol = selected_stock
+            st.success(f"✅ {selected_stock} selected for analysis and will be used in Advanced Analytics")
     
     with col2:
         st.subheader("📅 Time Period Selection")
@@ -1101,6 +1140,10 @@ def advanced_analytics_section():
     """Advanced Analytics: Predictions, Visualizations, and Trading Insights."""
     st.header("🔮 Advanced Analytics & Predictions")
     st.markdown("Advanced technical analysis, predictions, and comprehensive trading insights")
+    
+    # Display selected stock from Phase 2
+    if st.session_state.selected_stock_symbol:
+        st.success(f"📊 Analyzing: {st.session_state.selected_stock_symbol} (selected from Phase 2)")
     
     if st.session_state.historical_data is None and st.session_state.yfinance_data is None:
         st.warning("⚠️ Please upload historical data or fetch yfinance data in Phase 2 first.")
