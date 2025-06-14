@@ -18,6 +18,8 @@ from utils.fixed_processor import FixedDataProcessor
 from utils.comprehensive_fix import ComprehensiveFix
 from utils.risk_gauge import RiskGauge
 from utils.chart_formatter import ChartFormatter
+from utils.robust_processor import RobustProcessor
+from utils.enhanced_comparative_analysis import EnhancedComparativeAnalysis
 import yfinance as yf
 from datetime import datetime, timedelta
 
@@ -30,6 +32,15 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Sidebar clear functionality
+with st.sidebar:
+    st.header("🔧 Controls")
+    if st.button("🗑️ Clear All Data", type="secondary", help="Refresh page to clear all data and start over"):
+        # Clear all session state
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
 
 # Initialize session state
 if 'current_data' not in st.session_state:
@@ -52,7 +63,35 @@ def data_upload_section():
     st.header("📁 Enhanced Data Upload & Processing")
     st.markdown("Upload your stock data files for comprehensive Phase 1 & Phase 2 analysis")
     
-    processor = DataProcessor()
+    # Clear files button with comprehensive session state clearing
+    if st.button("🗑️ Clear All Uploaded Files", type="secondary"):
+        # Get all session state keys related to data
+        keys_to_clear = [
+            'current_data', 'previous_data', 'daily_data', 'historical_data',
+            'comparative_analysis', 'yfinance_data', 'data_quality_report',
+            'selected_symbol', 'current_data_file', 'previous_data_file', 
+            'historical_data_file'
+        ]
+        
+        # Clear all identified keys
+        cleared_count = 0
+        for key in keys_to_clear:
+            if key in st.session_state:
+                del st.session_state[key]
+                cleared_count += 1
+        
+        # Clear any remaining file uploader states
+        for key in list(st.session_state.keys()):
+            key_str = str(key).lower()
+            if 'file' in key_str or 'data' in key_str:
+                if key not in keys_to_clear:
+                    del st.session_state[key]
+                    cleared_count += 1
+        
+        st.success(f"Successfully cleared {cleared_count} data items and uploaded files!")
+        st.rerun()
+    
+    robust_processor = RobustProcessor()
     
     # Current Data Upload
     st.subheader("📊 Current Stock Data")
@@ -66,7 +105,7 @@ def data_upload_section():
     if current_file is not None:
         try:
             with st.spinner("Processing current stock data..."):
-                current_data, quality_report = processor.process_daily_data(current_file)
+                current_data, quality_report = robust_processor.process_uploaded_data(current_file)
                 
                 if current_data is not None:
                     st.session_state.current_data = current_data
@@ -114,7 +153,7 @@ def data_upload_section():
     if previous_file is not None:
         try:
             with st.spinner("Processing previous stock data..."):
-                previous_data, prev_quality_report = processor.process_daily_data(previous_file)
+                previous_data, prev_quality_report = robust_processor.process_uploaded_data(previous_file)
                 
                 if previous_data is not None:
                     st.session_state.previous_data = previous_data
@@ -151,7 +190,9 @@ def data_upload_section():
     if historical_file is not None:
         try:
             with st.spinner("Processing historical data..."):
-                historical_data, extracted_symbol = processor.process_historical_data(historical_file)
+                # Use DataProcessor for historical data as it's specialized for that format
+                fallback_processor = DataProcessor()
+                historical_data, extracted_symbol = fallback_processor.process_historical_data(historical_file)
                 
                 if historical_data is not None:
                     st.session_state.historical_data = historical_data
@@ -232,19 +273,26 @@ def phase1_comparative_analysis_section():
     st.header("📊 Phase 1: Comparative Analysis")
     st.markdown("Compare current vs previous stock data for comprehensive market analysis")
     
+    # Note: Clear functionality moved to sidebar for better reliability
+    st.info("💡 To clear data or reset the analysis, please refresh the browser page.")
+    
     if st.session_state.current_data is None or st.session_state.previous_data is None:
         st.warning("⚠️ Please upload both current and previous stock data files in the Data Upload tab first.")
         return
     
     try:
-        # Initialize comparative analysis
-        with st.spinner("Performing comparative analysis..."):
-            comp_analysis = ComparativeAnalysis(st.session_state.current_data, st.session_state.previous_data)
-            merged_data = comp_analysis.merged_data if hasattr(comp_analysis, 'merged_data') else pd.DataFrame()
+        # Initialize enhanced comparative analysis with all features
+        with st.spinner("Performing enhanced comparative analysis..."):
+            comp_analysis = EnhancedComparativeAnalysis(
+                st.session_state.current_data, 
+                st.session_state.previous_data
+            )
             
-            if merged_data is None or merged_data.empty:
-                st.error("No matching stocks found between current and previous data. Please check Symbol columns.")
+            if comp_analysis.merged_data is None or comp_analysis.merged_data.empty:
+                st.error("No matching stocks found between the two datasets")
                 return
+            
+            merged_data = comp_analysis.merged_data
         
         # Performance Summary
         st.subheader("📈 Overall Performance Summary")
@@ -268,47 +316,87 @@ def phase1_comparative_analysis_section():
                 losers = summary.get('losers', 0)
                 st.metric("Losers", losers, delta="negative" if losers > 0 else None)
         
-        # Top/Bottom Performers
+        # Interactive Performance Chart with Hover
+        st.subheader("📈 Interactive Performance Visualization")
+        try:
+            performance_chart = comp_analysis.create_interactive_performance_chart()
+            if performance_chart and hasattr(performance_chart, 'data') and performance_chart.data:
+                st.plotly_chart(performance_chart, use_container_width=True)
+            else:
+                st.info("Performance chart not available")
+        except Exception as e:
+            st.warning(f"Could not generate performance chart: {str(e)}")
+        
+        # Top/Bottom Performers using enhanced analysis
         performers_col1, performers_col2 = st.columns(2)
         
         with performers_col1:
             st.subheader("🏆 Top 5 Performers")
-            if merged_data is not None and not merged_data.empty and 'Price_Change_Pct' in merged_data.columns:
-                valid_data = merged_data.dropna(subset=['Price_Change_Pct'])
-                if not valid_data.empty:
-                    top_performers = valid_data.nlargest(5, 'Price_Change_Pct')
-                    for idx, row in top_performers.iterrows():
-                        symbol = row.get('Symbol', 'N/A')
-                        change_pct = row.get('Price_Change_Pct', 0)
-                        st.success(f"🟢 **{symbol}**: {change_pct:.2f}%")
-                else:
-                    st.info("No top performers data available")
+            if not merged_data.empty and 'Price_Change_Pct' in merged_data.columns:
+                try:
+                    top_data = merged_data.dropna(subset=['Price_Change_Pct'])
+                    if not top_data.empty:
+                        top_performers = top_data.nlargest(5, 'Price_Change_Pct')
+                        for idx, row in top_performers.iterrows():
+                            symbol = row.get('Symbol', 'N/A')
+                            change_pct = row.get('Price_Change_Pct', 0)
+                            change_amt = row.get('Price_Change', 0)
+                            st.success(f"**{symbol}**: {change_pct:.2f}% (${change_amt:.2f})")
+                    else:
+                        st.info("No top performers data available")
+                except Exception as e:
+                    st.warning(f"Could not display top performers: {str(e)}")
             else:
                 st.info("No top performers data available")
         
         with performers_col2:
             st.subheader("📉 Bottom 5 Performers")
-            if merged_data is not None and not merged_data.empty and 'Price_Change_Pct' in merged_data.columns:
-                valid_data = merged_data.dropna(subset=['Price_Change_Pct'])
-                if not valid_data.empty:
-                    bottom_performers = valid_data.nsmallest(5, 'Price_Change_Pct')
-                    for idx, row in bottom_performers.iterrows():
-                        symbol = row.get('Symbol', 'N/A')
-                        change_pct = row.get('Price_Change_Pct', 0)
-                        st.error(f"🔴 **{symbol}**: {change_pct:.2f}%")
-                else:
-                    st.info("No bottom performers data available")
+            if not merged_data.empty and 'Price_Change_Pct' in merged_data.columns:
+                try:
+                    bottom_data = merged_data.dropna(subset=['Price_Change_Pct'])
+                    if not bottom_data.empty:
+                        bottom_performers = bottom_data.nsmallest(5, 'Price_Change_Pct')
+                        for idx, row in bottom_performers.iterrows():
+                            symbol = row.get('Symbol', 'N/A')
+                            change_pct = row.get('Price_Change_Pct', 0)
+                            change_amt = row.get('Price_Change', 0)
+                            st.error(f"**{symbol}**: {change_pct:.2f}% (${change_amt:.2f})")
+                    else:
+                        st.info("No bottom performers data available")
+                except Exception as e:
+                    st.warning(f"Could not display bottom performers: {str(e)}")
             else:
                 st.info("No bottom performers data available")
         
-        # Performance Dashboard with Professional Risk Analysis
-        st.subheader("📊 Performance Dashboard")
-        try:
-            dashboard_fig = comp_analysis.create_performance_dashboard()
-            if dashboard_fig and hasattr(dashboard_fig, 'data') and dashboard_fig.data:
-                st.plotly_chart(dashboard_fig, use_container_width=True)
-        except:
-            st.info("Advanced dashboard temporarily unavailable. Analysis continues below.")
+        # Data Summary Dashboard
+        st.subheader("📊 Analysis Summary")
+        if not merged_data.empty:
+            # Create simple summary table
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("📈 Dataset Overview")
+                st.info(f"Successfully compared {len(merged_data)} stocks")
+                
+                if 'Price_Change_Pct' in merged_data.columns:
+                    positive_changes = (merged_data['Price_Change_Pct'] > 0).sum()
+                    negative_changes = (merged_data['Price_Change_Pct'] < 0).sum()
+                    unchanged = (merged_data['Price_Change_Pct'] == 0).sum()
+                    
+                    st.write(f"- **Gainers:** {positive_changes}")
+                    st.write(f"- **Losers:** {negative_changes}")
+                    st.write(f"- **Unchanged:** {unchanged}")
+            
+            with col2:
+                st.subheader("💾 Download Results")
+                if st.button("📄 Download Full Analysis (CSV)", type="secondary"):
+                    csv_data = merged_data.to_csv(index=False)
+                    st.download_button(
+                        label="💾 Download CSV File",
+                        data=csv_data,
+                        file_name=f"stock_comparison_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv"
+                    )
         
         # Professional Risk Assessment Dashboard
         st.subheader("🎯 Professional Risk Assessment")
@@ -378,36 +466,103 @@ def phase1_comparative_analysis_section():
             valid_data = all_stocks_df[all_stocks_df['Price_Change_Pct'].notna()].copy()
             
             if not valid_data.empty:
-                # Filter controls
-                filter_col1, filter_col2, filter_col3 = st.columns(3)
+                # Filter controls - Enhanced with search and sector filter
+                filter_col1, filter_col2, filter_col3, filter_col4 = st.columns(4)
                 
                 with filter_col1:
+                    # Stock Symbol Search
+                    search_symbol = st.text_input("Search Stock Symbol:", placeholder="e.g., AAPL, TSLA, TNXP")
+                
+                with filter_col2:
+                    # Sector Filter
+                    available_sectors = comp_analysis.get_available_sectors()
+                    if available_sectors:
+                        selected_sector = st.selectbox("Filter by Sector:", available_sectors, index=0)
+                    else:
+                        selected_sector = "All"
+                        st.info("Sector data not available")
+                
+                with filter_col3:
                     performance_filter = st.selectbox(
                         "Filter by Performance",
                         ["All Stocks", "Gainers Only", "Losers Only", "Top 10 Performers", "Bottom 10 Performers"],
                         help="Filter stocks based on performance"
                     )
                 
-                with filter_col2:
+                with filter_col4:
                     min_change = st.number_input(
                         "Min Change %",
                         value=float(valid_data['Price_Change_Pct'].min()),
                         help="Minimum price change percentage"
                     )
                 
-                with filter_col3:
+                # Additional filter row
+                filter_col5, filter_col6 = st.columns(2)
+                
+                with filter_col5:
                     max_change = st.number_input(
                         "Max Change %", 
                         value=float(valid_data['Price_Change_Pct'].max()),
                         help="Maximum price change percentage"
                     )
                 
-                # Apply filters
+                with filter_col6:
+                    clear_filters_col1, clear_filters_col2 = st.columns(2)
+                    with clear_filters_col1:
+                        if st.button("🔍 Search & Filter", type="primary"):
+                            st.success("Filters applied!")
+                    with clear_filters_col2:
+                        if st.button("🧹 Clear Filters", type="secondary", key="clear_filters"):
+                            st.rerun()
+                
+                # Enhanced filter row for profit/loss amounts
+                filter_col4, filter_col5 = st.columns(2)
+                
+                with filter_col4:
+                    profit_filter = st.number_input(
+                        "Min Profit $",
+                        value=0.0,
+                        help="Show only stocks with profit above this amount"
+                    )
+                
+                with filter_col5:
+                    loss_filter = st.number_input(
+                        "Max Loss $",
+                        value=0.0,
+                        help="Show only stocks with loss below this amount (negative)"
+                    )
+                
+                # Apply comprehensive filters
                 filtered_df = valid_data[
                     (valid_data['Price_Change_Pct'] >= min_change) & 
                     (valid_data['Price_Change_Pct'] <= max_change)
                 ].copy()
                 
+                # Apply search filter
+                if search_symbol and search_symbol.strip():
+                    search_results = comp_analysis.search_stock(search_symbol)
+                    if not search_results.empty:
+                        # Filter to show only searched stocks
+                        search_symbols = search_results['Symbol'].tolist()
+                        filtered_df = filtered_df[filtered_df['Symbol'].isin(search_symbols)]
+                        st.info(f"Filtered to show results for: {search_symbol}")
+                
+                # Apply sector filter
+                if selected_sector and selected_sector != "All":
+                    sector_filtered = comp_analysis.filter_by_sector(selected_sector)
+                    if not sector_filtered.empty:
+                        sector_symbols = sector_filtered['Symbol'].tolist()
+                        filtered_df = filtered_df[filtered_df['Symbol'].isin(sector_symbols)]
+                        st.info(f"Filtered to show {selected_sector} sector stocks")
+                
+                # Apply profit/loss dollar amount filters
+                if 'Price_Change' in filtered_df.columns:
+                    if profit_filter > 0:
+                        filtered_df = filtered_df[filtered_df['Price_Change'] >= profit_filter]
+                    if loss_filter < 0:
+                        filtered_df = filtered_df[filtered_df['Price_Change'] <= loss_filter]
+                
+                # Apply performance category filters
                 if performance_filter == "Gainers Only":
                     filtered_df = filtered_df[filtered_df['Price_Change_Pct'] > 0]
                 elif performance_filter == "Losers Only":
@@ -419,9 +574,7 @@ def phase1_comparative_analysis_section():
                     if len(filtered_df) > 0 and 'Price_Change_Pct' in filtered_df.columns:
                         filtered_df = filtered_df.nsmallest(10, 'Price_Change_Pct')
                 
-                # Sort by performance
-                if isinstance(filtered_df, pd.DataFrame) and not filtered_df.empty and 'Price_Change_Pct' in filtered_df.columns:
-                    filtered_df = filtered_df.sort_values('Price_Change_Pct', ascending=False)
+                # Note: No global sorting here to preserve individual section sorting
                 
                 # Display metrics
                 metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
@@ -438,54 +591,88 @@ def phase1_comparative_analysis_section():
                     avg_change = filtered_df['Price_Change_Pct'].mean() if not filtered_df.empty else 0
                     st.metric("Avg Change", f"{avg_change:.2f}%", delta=f"{avg_change:.2f}%")
                 
-                # Display filtered results
+                # Enhanced display with comprehensive comparison columns
                 if not filtered_df.empty:
-                    # Find price columns dynamically
-                    price_current_col = None
-                    price_previous_col = None
+                    # Define comprehensive display columns
+                    display_columns = []
                     
-                    for col in filtered_df.columns:
-                        if 'Last Sale_current' in col or 'Price_current' in col:
-                            price_current_col = col
-                        elif 'Last Sale_previous' in col or 'Price_previous' in col:
-                            price_previous_col = col
-                    
-                    # Prepare display columns with available ones
-                    display_columns = ['Symbol', 'Price_Change_Pct', 'Profit_Loss']
-                    
-                    # Add name column if available
+                    # Basic info columns (from current file)
+                    basic_columns = ['Symbol']
                     for col in filtered_df.columns:
                         if 'Name_current' in col or 'Company_current' in col:
-                            display_columns.insert(1, col)
+                            basic_columns.append(col)
                             break
                     
-                    # Add price columns if available
-                    if price_current_col:
-                        display_columns.append(price_current_col)
-                    if price_previous_col:
-                        display_columns.append(price_previous_col)
-                    
-                    # Add volume and market cap if available
+                    # Add metadata from current file
                     for col in filtered_df.columns:
-                        if 'Volume_current' in col:
-                            display_columns.append(col)
+                        if any(x in col for x in ['Sector_current', 'Industry_current', 'Country_current', 'IPO_current']):
+                            basic_columns.append(col)
+                    
+                    display_columns.extend(basic_columns)
+                    
+                    # Price comparison columns
+                    price_columns = []
+                    for col in filtered_df.columns:
+                        if 'Last Sale_previous' in col:
+                            price_columns.append(col)
+                        elif 'Last Sale_current' in col:
+                            price_columns.append(col)
+                    
+                    if 'Price_Change' in filtered_df.columns:
+                        price_columns.append('Price_Change')
+                    if 'Price_Change_Pct' in filtered_df.columns:
+                        price_columns.append('Price_Change_Pct')
+                    if 'Profit_Loss' in filtered_df.columns:
+                        price_columns.append('Profit_Loss')
+                    
+                    display_columns.extend(price_columns)
+                    
+                    # Market Cap comparison columns
+                    mcap_columns = []
+                    for col in filtered_df.columns:
+                        if 'Market Cap_previous' in col:
+                            mcap_columns.append(col)
                         elif 'Market Cap_current' in col:
-                            display_columns.append(col)
+                            mcap_columns.append(col)
+                    if 'MarketCap_Difference' in filtered_df.columns:
+                        mcap_columns.append('MarketCap_Difference')
+                    
+                    display_columns.extend(mcap_columns)
+                    
+                    # Volume comparison columns
+                    volume_columns = []
+                    for col in filtered_df.columns:
+                        if 'Volume_previous' in col:
+                            volume_columns.append(col)
+                        elif 'Volume_current' in col:
+                            volume_columns.append(col)
+                    if 'Volume_Difference' in filtered_df.columns:
+                        volume_columns.append('Volume_Difference')
+                    
+                    display_columns.extend(volume_columns)
                     
                     # Filter to only available columns
                     available_columns = [col for col in display_columns if col in filtered_df.columns]
                     
-                    # Round numeric columns
-                    display_data = filtered_df[available_columns].copy()
-                    for col in display_data.columns:
-                        if display_data[col].dtype in ['float64', 'int64']:
-                            display_data[col] = display_data[col].round(2)
-                    
-                    st.dataframe(
-                        display_data,
-                        use_container_width=True,
-                        height=400
-                    )
+                    # Format and display data
+                    if available_columns:
+                        display_data = filtered_df[available_columns].copy()
+                        
+                        # Round numeric columns
+                        for col in display_data.columns:
+                            if display_data[col].dtype in ['float64', 'int64']:
+                                display_data[col] = display_data[col].round(2)
+                        
+                        st.dataframe(
+                            display_data,
+                            use_container_width=True,
+                            height=400
+                        )
+                        
+                        # Show column summary
+                        st.info(f"Displaying {len(available_columns)} columns: {', '.join(available_columns[:5])}{'...' if len(available_columns) > 5 else ''}")
+                    else:
+                        st.warning("No comparison columns available for display.")
                     
                     # Download filtered data
                     csv = filtered_df.to_csv(index=False)
@@ -502,58 +689,96 @@ def phase1_comparative_analysis_section():
         else:
             st.warning("Price change analysis not available - missing required data")
         
+        # Sector Performance Chart
+        st.subheader("🏭 Sector Performance Analysis")
+        try:
+            sector_chart = comp_analysis.create_sector_performance_chart()
+            if sector_chart and hasattr(sector_chart, 'data') and sector_chart.data:
+                st.plotly_chart(sector_chart, use_container_width=True)
+            else:
+                st.info("Sector performance chart not available")
+        except Exception as e:
+            st.warning(f"Could not generate sector chart: {str(e)}")
+        
         # Sector Analysis
-        st.subheader("🏭 Sector Analysis")
-        sector_analysis = comp_analysis.get_sector_analysis()
-        if not sector_analysis.empty:
-            st.dataframe(sector_analysis, use_container_width=True)
-        else:
-            st.info("Sector analysis not available - missing sector data")
+        st.subheader("🏭 Detailed Sector Analysis")
+        try:
+            sector_analysis = comp_analysis.get_sector_analysis()
+            if not sector_analysis.empty:
+                st.dataframe(sector_analysis, use_container_width=True)
+            else:
+                st.info("Sector analysis not available - missing sector data")
+        except Exception as e:
+            st.warning(f"Could not generate sector analysis: {str(e)}")
         
         # Industry Analysis
         st.subheader("🏢 Industry Analysis (Top 20)")
-        industry_analysis = comp_analysis.get_industry_analysis()
-        if not industry_analysis.empty:
-            st.dataframe(industry_analysis, use_container_width=True)
-        else:
-            st.info("Industry analysis not available - missing industry data")
-        
-        # Outlier Detection - Moved to expandable section
-        with st.expander("🎯 Outlier Detection", expanded=False):
-            outliers = comp_analysis.detect_outliers()
-            
-            if outliers:
-                outlier_col1, outlier_col2 = st.columns(2)
-                
-                with outlier_col1:
-                    st.write("**🚀 Extreme Gainers**")
-                    if outliers.get('extreme_gainers'):
-                        for stock in outliers['extreme_gainers']:
-                            st.success(f"• {stock['Symbol']}: {stock['Price_Change_Pct']:.2f}%")
-                    else:
-                        st.info("No extreme gainers detected")
-                
-                with outlier_col2:
-                    st.write("**📉 Extreme Losers**")
-                    if outliers.get('extreme_losers'):
-                        for stock in outliers['extreme_losers']:
-                            st.error(f"• {stock['Symbol']}: {stock['Price_Change_Pct']:.2f}%")
-                    else:
-                        st.info("No extreme losers detected")
+        try:
+            industry_analysis = comp_analysis.get_industry_analysis()
+            if not industry_analysis.empty:
+                st.dataframe(industry_analysis, use_container_width=True)
+            else:
+                st.info("Industry analysis not available - missing industry data")
+        except Exception as e:
+            st.warning(f"Could not generate industry analysis: {str(e)}")
         
         # Correlation Analysis
         st.subheader("🔗 Correlation Analysis")
-        correlation_matrix = comp_analysis.calculate_correlations()
-        if not correlation_matrix.empty:
-            fig = px.imshow(
-                correlation_matrix,
-                text_auto=True,
-                aspect="auto",
-                title="Correlation Matrix of Key Metrics"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Correlation analysis not available")
+        try:
+            correlation_chart = comp_analysis.create_correlation_heatmap()
+            if correlation_chart and hasattr(correlation_chart, 'data') and correlation_chart.data:
+                st.plotly_chart(correlation_chart, use_container_width=True)
+            else:
+                st.info("Correlation analysis not available")
+        except Exception as e:
+            st.warning(f"Could not generate correlation analysis: {str(e)}")
+        
+        # Performance Dashboard
+        st.subheader("📊 Comprehensive Performance Dashboard")
+        try:
+            dashboard_fig = comp_analysis.create_performance_dashboard()
+            if dashboard_fig and hasattr(dashboard_fig, 'data') and dashboard_fig.data:
+                st.plotly_chart(dashboard_fig, use_container_width=True)
+            else:
+                st.info("Performance dashboard not available")
+        except Exception as e:
+            st.warning(f"Could not generate dashboard: {str(e)}")
+        
+        # Statistical Summary - Per Stock Details
+        with st.expander("📊 Per-Stock Statistical Summary", expanded=False):
+            if 'Price_Change_Pct' in merged_data.columns:
+                st.subheader("Individual Stock Statistics")
+                
+                # Create detailed per-stock summary
+                stock_stats = merged_data[['Symbol', 'Current_Price', 'Previous_Price', 'Price_Change', 'Price_Change_Pct']].copy()
+                stock_stats = stock_stats.sort_values('Price_Change_Pct', ascending=False)
+                
+                st.dataframe(
+                    stock_stats.style.format({
+                        'Current_Price': '${:.2f}',
+                        'Previous_Price': '${:.2f}',
+                        'Price_Change': '${:.2f}',
+                        'Price_Change_Pct': '{:.2f}%'
+                    }),
+                    use_container_width=True
+                )
+                
+                # Overall statistics
+                st.subheader("Aggregate Statistics")
+                stats_data = merged_data['Price_Change_Pct'].describe()
+                
+                stats_col1, stats_col2 = st.columns(2)
+                with stats_col1:
+                    st.metric("Mean Change", f"{stats_data['mean']:.2f}%")
+                    st.metric("Median Change", f"{stats_data['50%']:.2f}%")
+                    st.metric("Standard Deviation", f"{stats_data['std']:.2f}%")
+                
+                with stats_col2:
+                    st.metric("Maximum Gain", f"{stats_data['max']:.2f}%")
+                    st.metric("Maximum Loss", f"{stats_data['min']:.2f}%")
+                    st.metric("Data Points", f"{int(stats_data['count'])}")
+            else:
+                st.info("Price change statistics not available")
             
     except Exception as e:
         st.error(f"Error in Phase 1 analysis: {str(e)}")
@@ -1451,30 +1676,6 @@ def main():
     
     with tab4:
         advanced_analytics_section()
-# Clear Analysis Button
-if st.button("🗑️ Clear All Analysis", help="Reset all analysis data and uploaded files"):
-    try:
-        # Clear all session state keys except Streamlit's internal widget keys
-        for key in list(st.session_state.keys()):
-            if not key.startswith("file_uploader_"):  # Protect file_uploader widget keys
-                del st.session_state[key]
-
-        # Reinitialize essential session state keys
-        st.session_state['current_data'] = None
-        st.session_state['previous_data'] = None
-        st.session_state['comparative_analysis'] = None
-        st.session_state['data_quality_report'] = None
-        st.session_state['historical_data'] = None
-        st.session_state['selected_symbol'] = None
-        st.session_state['yfinance_data'] = None
-
-        # Increment upload_key to force file uploader reset (optional, may not be needed with static keys)
-        st.session_state['upload_key'] = st.session_state.get('upload_key', 0) + 1
-
-        st.success("✅ All analysis data and uploaded files cleared! Ready for new uploads.")
-        st.rerun()  # Refresh UI
-    except Exception as e:
-        st.error(f"Error clearing analysis: {str(e)}")
 
 if __name__ == "__main__":
     main()
