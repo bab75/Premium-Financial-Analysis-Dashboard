@@ -929,67 +929,25 @@ def phase2_deep_analysis_section():
                     # Rename Date to Datetime for consistency
                     if 'Date' in hist_data_clean.columns:
                         hist_data_clean = hist_data_clean.rename(columns={'Date': 'Datetime'})
-                                        
+                    
                     # Advanced Visualizations
                     st.subheader("📊 Advanced Price Visualizations")
                     
                     # Create enhanced visualizations
                     if len(hist_data_clean) > 0:
-                        viz = Visualizations(historical_data=hist_data_clean, output_dir="charts")
+                        viz = Visualizations(historical_data=hist_data_clean)
                         
                         # Candlestick chart
-                        candlestick_filename = f"candlestick_chart_{selected_stock}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.html"
-                        candlestick_fig = viz.create_and_save_candlestick_chart(filename=candlestick_filename)
+                        candlestick_fig = viz.create_candlestick_chart()
                         st.plotly_chart(candlestick_fig, use_container_width=True, key="phase2_candlestick")
                         
-                        # Download button for candlestick chart
-                        try:
-                            with open(os.path.join("charts", candlestick_filename), "rb") as f:
-                                st.download_button(
-                                    label="📥 Download Candlestick Chart (HTML)",
-                                    data=f,
-                                    file_name=candlestick_filename,
-                                    mime="text/html",
-                                    key="download_candlestick"
-                                )
-                        except FileNotFoundError:
-                            st.warning("Candlestick chart file not found for download.")
-                        
                         # Price trends
-                        price_trends_filename = f"price_trends_chart_{selected_stock}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.html"
-                        price_trends_fig = viz.create_and_save_price_trends_chart(filename=price_trends_filename)
+                        price_trends_fig = viz.create_price_trends_chart()
                         st.plotly_chart(price_trends_fig, use_container_width=True, key="phase2_price_trends")
                         
-                        # Download button for price trends chart
-                        try:
-                            with open(os.path.join("charts", price_trends_filename), "rb") as f:
-                                st.download_button(
-                                    label="📥 Download Price Trends Chart (HTML)",
-                                    data=f,
-                                    file_name=price_trends_filename,
-                                    mime="text/html",
-                                    key="download_price_trends"
-                                )
-                        except FileNotFoundError:
-                            st.warning("Price trends chart file not found for download.")
-                        
                         # Volume analysis
-                        volume_filename = f"volume_chart_{selected_stock}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.html"
-                        volume_fig = viz.create_and_save_volume_chart(filename=volume_filename)
+                        volume_fig = viz.create_volume_chart()
                         st.plotly_chart(volume_fig, use_container_width=True, key="phase2_volume")
-                        
-                        # Download button for volume chart
-                        try:
-                            with open(os.path.join("charts", volume_filename), "rb") as f:
-                                st.download_button(
-                                    label="📥 Download Volume Chart (HTML)",
-                                    data=f,
-                                    file_name=volume_filename,
-                                    mime="text/html",
-                                    key="download_volume"
-                                )
-                        except FileNotFoundError:
-                            st.warning("Volume chart file not found for download.")
                     
                     # Technical Analysis
                     if len(hist_data_clean) > 50:
