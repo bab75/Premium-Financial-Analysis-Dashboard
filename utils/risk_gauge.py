@@ -279,60 +279,90 @@ class RiskGauge:
     def create_advanced_candlestick(self, data: pd.DataFrame) -> go.Figure:
         """Create professional candlestick chart with technical indicators."""
         
-        if data.empty or 'Date' not in data.columns:
+        # --- Correction Start: Added data validation and datetime conversion ---
+        if data.empty or not all(col in data.columns for col in ['Open', 'High', 'Low', 'Close', 'Volume']):
             return go.Figure()
         
-        fig = go.Figure()
+        # Ensure Date or Datetime column exists
+        date_col = 'Date' if 'Date' in data.columns else 'Datetime' if 'Datetime' in data.columns else None
+        if date_col is None:
+            return go.Figure()
         
-        # Add candlestick
+        # Convert date column to datetime and ensure it's not the index
+        data = data.copy()
+        data[date_col] = pd.to_datetime(data[date_col], errors='coerce')
+        if data[date_col].isna().any():
+            return go.Figure()  # Return empty figure if date conversion fails
+        
+        # Clean data by removing rows with NaN in required columns
+        data = data.dropna(subset=['Open', 'High', 'Low', 'Close', 'Volume', date_col])
+        if data.empty:
+            return go.Figure()
+        # --- Correction End ---
+        
+        # Create subplots for candlestick and volume
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.03,
+            subplot_titles=('Stock Price', 'Volume'),
+            row_heights=[0.7, 0.3]
+        )
+        
+        # Add candlestick trace
         fig.add_trace(go.Candlestick(
-            x=data['Date'],
+            x=data[date_col],
             open=data['Open'],
             high=data['High'],
             low=data['Low'],
             close=data['Close'],
             name="Price",
             increasing_line_color='#00ff00',
-            decreasing_line_color='#ff0000'
-        ))
-        
-        # Add volume subplot
-        fig = make_subplots(
-            rows=2, cols=1,
-            shared_xaxes=True,
-            vertical_spacing=0.03,
-            subplot_titles=('Stock Price', 'Volume'),
-            row_width=[0.7, 0.3]
-        )
-        
-        fig.add_trace(go.Candlestick(
-            x=data['Date'],
-            open=data['Open'],
-            high=data['High'],
-            low=data['Low'],
-            close=data['Close'],
-            name="Price"
+            decreasing_line_color='#ff0000',
+            # --- Correction Start: Added custom hover template ---
+            hovertemplate=(
+                '<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                '<b>Open:</b> $%{open:.2f}<br>' +
+                '<b>High:</b> $%{high:.2f}<br>' +
+                '<b>Low:</b> $%{low:.2f}<br>' +
+                '<b>Close:</b> $%{close:.2f}<extra></extra>'
+            )
+            # --- Correction End ---
         ), row=1, col=1)
         
+        # Add volume bar trace
         fig.add_trace(go.Bar(
-            x=data['Date'],
+            x=data[date_col],
             y=data['Volume'],
             name="Volume",
-            marker_color='lightblue'
+            marker_color='lightblue',
+            # --- Correction Start: Added hover template for volume ---
+            hovertemplate=(
+                '<b>Date:</b> %{x|%m-%d-%y}<br>' +
+                '<b>Volume:</b> %{y:,.0f}<extra></extra>'
+            )
+            # --- Correction End ---
         ), row=2, col=1)
         
+        # Update layout
         fig.update_layout(
             title='Professional Candlestick Analysis',
             yaxis_title='Stock Price (USD)',
+            yaxis2_title='Volume',
             xaxis_rangeslider_visible=False,
             height=600,
             showlegend=False
         )
         
-        # Format dates
+        # --- Correction Start: Enhanced x-axis formatting ---
         fig.update_xaxes(
+            type='date',
             tickformat='%m-%d-%y',
-            tickangle=45
+            tickangle=45,
+            hoverformat='%m-%d-%y',
+            showgrid=True,
+            rangeslider_visible=False
         )
+        # --- Correction End ---
         
         return fig
