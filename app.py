@@ -1470,8 +1470,8 @@ def advanced_analytics_section():
                             data_clean['Date'] = data_clean.index
                     
                     st.subheader("📈 Professional Technical Analysis Chart")
-                    candlestick_fig = risk_gauge.create_advanced_candlestick(data_clean)
-                    st.plotly_chart(candlestick_fig, use_container_width=True, key="advanced_candlestick_tech")
+                    price_volume_fig = risk_gauge.create_price_volume_line(data_clean)
+                    st.plotly_chart(price_volume_fig, use_container_width=True, key="price_volume_line_tech")
                 else:
                     st.warning("Insufficient data for advanced risk analysis")
             
