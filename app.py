@@ -33,15 +33,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Sidebar clear functionality
-with st.sidebar:
-    st.header("🔧 Controls")
-    if st.button("🗑️ Clear All Data", type="secondary", help="Refresh page to clear all data and start over"):
-        # Clear all session state
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        st.rerun()
-
 # Initialize session state
 if 'current_data' not in st.session_state:
     st.session_state.current_data = None
@@ -66,7 +57,7 @@ def data_upload_section():
     st.markdown("Upload your stock data files for comprehensive Phase 1 & Phase 2 analysis")
     
     # Clear files button with comprehensive session state clearing
-    if st.button("🗑️ Clear All Uploaded Files", type="secondary"):
+    if st.button("🗑️ Clear All Analysis Results ", type="secondary"):
         # Get all session state keys related to data
         keys_to_clear = [
             'current_data', 'previous_data', 'daily_data', 'historical_data',
