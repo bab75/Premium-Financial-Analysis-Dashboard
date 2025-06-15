@@ -1246,7 +1246,7 @@ def advanced_analytics_section():
                                 'sentiment': 50 + (price_trend * 0.5),
                                 'liquidity': min(100, max(20, 100 - volume_volatility))
                             }
-                                                        visualizations_dict['risk_gauge'] = risk_gauge.create_risk_gauge(risk_data['risk_score'], "Overall Risk")
+                            visualizations_dict['risk_gauge'] = risk_gauge.create_risk_gauge(risk_data['risk_score'], "Overall Risk")
                             visualizations_dict['volatility_gauge'] = risk_gauge.create_volatility_gauge(risk_data['volatility'])
                             visualizations_dict['performance_gauge'] = risk_gauge.create_performance_gauge(risk_data['performance'])
                             visualizations_dict['advanced_dashboard'] = risk_gauge.create_advanced_dashboard(risk_data)
