@@ -1,4 +1,3 @@
-```python
 """
 HTML Report Generator for Financial Analysis
 Creates comprehensive downloadable HTML reports with interactive charts
@@ -485,4 +484,4 @@ class HTMLReportGenerator:
             html_section += "<p>Error generating advanced analytics: " + str(e) + "</p>"
         
         return html_section
-```
+
