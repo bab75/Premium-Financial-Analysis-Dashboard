@@ -417,60 +417,73 @@ class TechnicalIndicators:
             return "Lower Half"
     
     def get_trading_signals(self) -> Dict[str, Dict[str, str]]:
-        """Generate trading signals based on technical indicators."""
+        """Generate trading signals based on technical indicators with strength calculation."""
         signals = {}
         
         # RSI Signal
         rsi = self.calculate_rsi()
         current_rsi = rsi.iloc[-1]
-        
+        # Calculate RSI strength: distance from overbought/oversold thresholds
         if current_rsi > 70:
             rsi_signal = "SELL"
             rsi_explanation = "RSI above 70 indicates overbought conditions"
             rsi_implication = "Consider taking profits or reducing position size"
+            rsi_strength = f"Strong ({(current_rsi - 70):.1f} above overbought)"
         elif current_rsi < 30:
             rsi_signal = "BUY"
             rsi_explanation = "RSI below 30 indicates oversold conditions"
             rsi_implication = "Potential buying opportunity for mean reversion"
+            rsi_strength = f"Strong ({(30 - current_rsi):.1f} below oversold)"
         else:
             rsi_signal = "NEUTRAL"
             rsi_explanation = "RSI in neutral zone (30-70)"
             rsi_implication = "No strong momentum signal, monitor for breakouts"
+            rsi_distance = min(abs(current_rsi - 70), abs(current_rsi - 30))
+            rsi_strength = f"Weak ({rsi_distance:.1f} from threshold)"
         
         signals['RSI'] = {
             'signal': rsi_signal,
             'explanation': rsi_explanation,
-            'trading_implication': rsi_implication
+            'trading_implication': rsi_implication,
+            'strength': rsi_strength
         }
         
         # MACD Signal
         macd_data = self.calculate_macd()
         current_macd = macd_data['MACD'].iloc[-1]
         current_signal = macd_data['Signal'].iloc[-1]
-        
+        # Calculate MACD strength: magnitude of MACD-Signal divergence relative to historical volatility
+        macd_diff = abs(current_macd - current_signal)
+        macd_std = macd_data['MACD'].std() if len(macd_data['MACD']) > 1 else 1
+        macd_strength_val = macd_diff / macd_std if macd_std != 0 else 0
         if current_macd > current_signal:
             if len(macd_data['MACD']) > 1 and macd_data['MACD'].iloc[-2] <= macd_data['Signal'].iloc[-2]:
                 macd_signal = "BUY"
                 macd_explanation = "MACD line crossed above Signal line (bullish crossover)"
                 macd_implication = "Potential upward momentum, consider entry"
+                macd_strength = f"Strong (Crossover, {macd_diff:.2f} diff)"
             else:
                 macd_signal = "BULLISH"
                 macd_explanation = "MACD line above Signal line"
                 macd_implication = "Positive momentum continues"
+                macd_strength = f"Moderate ({macd_strength_val:.2f}x std dev)"
         else:
             if len(macd_data['MACD']) > 1 and macd_data['MACD'].iloc[-2] >= macd_data['Signal'].iloc[-2]:
                 macd_signal = "SELL"
                 macd_explanation = "MACD line crossed below Signal line (bearish crossover)"
                 macd_implication = "Potential downward momentum, consider exit"
+                macd_strength = f"Strong (Crossover, {macd_diff:.2f} diff)"
             else:
                 macd_signal = "BEARISH"
                 macd_explanation = "MACD line below Signal line"
                 macd_implication = "Negative momentum continues"
+                macd_strength = f"Moderate ({macd_strength_val:.2f}x std dev)"
         
         signals['MACD'] = {
             'signal': macd_signal,
             'explanation': macd_explanation,
-            'trading_implication': macd_implication
+            'trading_implication': macd_implication,
+            'strength': macd_strength
         }
         
         # Moving Average Signal
@@ -479,47 +492,62 @@ class TechnicalIndicators:
         current_price = self.data['Close'].iloc[-1]
         current_sma_20 = sma_20.iloc[-1]
         current_sma_50 = sma_50.iloc[-1]
-        
+        # Calculate MA strength: price distance from MAs relative to volatility
+        price_volatility = self.data['Close'].pct_change().std() * np.sqrt(252) if len(self.data) > 1 else 0.01
+        ma_distance = abs(current_price - current_sma_20) / (current_sma_20 * price_volatility) if current_sma_20 != 0 else 0
         if current_price > current_sma_20 > current_sma_50:
             ma_signal = "BULLISH"
             ma_explanation = "Price above both short and long-term moving averages"
             ma_implication = "Strong upward trend, favorable for long positions"
+            ma_strength = f"Strong ({ma_distance:.2f}x volatility)"
         elif current_price < current_sma_20 < current_sma_50:
             ma_signal = "BEARISH"
             ma_explanation = "Price below both short and long-term moving averages"
             ma_implication = "Strong downward trend, consider short positions or exit longs"
+            ma_strength = f"Strong ({ma_distance:.2f}x volatility)"
         else:
             ma_signal = "MIXED"
             ma_explanation = "Mixed signals from moving averages"
             ma_implication = "Trend unclear, wait for clearer signals"
+            ma_strength = f"Weak ({ma_distance:.2f}x volatility)"
         
         signals['Moving Averages'] = {
             'signal': ma_signal,
             'explanation': ma_explanation,
-            'trading_implication': ma_implication
+            'trading_implication': ma_implication,
+            'strength': ma_strength
         }
         
         # Bollinger Bands Signal
         bb_data = self.calculate_bollinger_bands()
         bb_position = self.get_bollinger_position()
-        
+        # Calculate BB strength: price distance from bands relative to band width
+        current_price = self.data['Close'].iloc[-1]
+        current_upper = bb_data['Upper'].iloc[-1]
+        current_lower = bb_data['Lower'].iloc[-1]
+        band_width = (current_upper - current_lower) / current_lower if current_lower != 0 else 0
+        bb_distance = abs(current_price - (current_upper if current_price > current_upper else current_lower)) / (band_width * current_lower) if band_width != 0 else 0
         if bb_position == "Above Upper Band":
             bb_signal = "OVERBOUGHT"
             bb_explanation = "Price above upper Bollinger Band"
             bb_implication = "Potential reversal or consolidation expected"
+            bb_strength = f"Strong ({bb_distance:.2f}x band width)"
         elif bb_position == "Below Lower Band":
             bb_signal = "OVERSOLD"
             bb_explanation = "Price below lower Bollinger Band"
             bb_implication = "Potential bounce or reversal opportunity"
+            bb_strength = f"Strong ({bb_distance:.2f}x band width)"
         else:
             bb_signal = "NORMAL"
             bb_explanation = f"Price in {bb_position.lower()} of Bollinger Bands"
             bb_implication = "Price within normal volatility range"
+            bb_strength = f"Weak ({bb_distance:.2f}x band width)"
         
         signals['Bollinger Bands'] = {
             'signal': bb_signal,
             'explanation': bb_explanation,
-            'trading_implication': bb_implication
+            'trading_implication': bb_implication,
+            'strength': bb_strength
         }
         
         return signals
