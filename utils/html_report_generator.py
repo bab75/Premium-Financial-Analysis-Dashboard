@@ -485,151 +485,140 @@ class HTMLReportGenerator:
         return filename
     
     def _generate_prediction_charts_section(self, historical_data) -> str:
-        """Generate prediction charts section for HTML report using actual PricePredictions class."""
-        html_section = """
-        
-            📈 Price Predictions
+    """Generate prediction charts section for HTML report using actual PricePredictions class."""
+    html_section = """
+    
+        📈 Price Predictions
 
-            Technical analysis, linear trend, and moving average predictions for future price movements.
+        Technical analysis, linear trend, and moving average predictions for future price movements.
 
-        """
+    """
+    
+    try:
+        from utils.predictions import PricePredictions
         
+        # Initialize predictions with historical data
+        predictions = PricePredictions(historical_data)
+        
+        # Generate predictions for 7 days using all three methods
+        prediction_days = 7
+        methods = [
+            ("technical_analysis", "Technical Analysis Prediction", "Advanced technical indicators and momentum analysis"),
+            ("linear_trend", "Linear Trend Prediction", "Statistical trend analysis and regression modeling"),
+            ("moving_average", "Moving Average Prediction", "Simple and exponential moving average forecasting")
+        ]
+        
+        for method_key, method_name, method_desc in methods:
+            try:
+                pred_data = predictions.predict_prices(prediction_days, method_key)
+                
+                if pred_data and len(pred_data) > 0:
+                    # Create prediction chart
+                    import plotly.graph_objects as go
+                    from plotly.subplots import make_subplots
+                    
+                    # Get recent historical prices for context
+                    recent_data = historical_data.tail(20)
+                    historical_dates = recent_data.index if hasattr(recent_data, 'index') else range(len(recent_data))
+                    historical_prices = recent_data['Close'].values
+                    
+                    # Generate future dates
+                    import pandas as pd
+                    if isinstance(historical_dates, pd.DatetimeIndex) and len(historical_dates) > 0:
+                        last_date = historical_dates[-1]
+                    else:
+                        last_date = pd.Timestamp.now()
+                    future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=prediction_days, freq='D')
+                    
+                    # Create chart
+                    fig = go.Figure()
+                    
+                    # Historical prices
+                    fig.add_trace(go.Scatter(
+                        x=historical_dates,
+                        y=historical_prices,
+                        mode='lines',
+                        name='Historical Prices',
+                        line=dict(color='blue', width=2)
+                    ))
+                    
+                    # Predicted prices
+                    fig.add_trace(go.Scatter(
+                        x=future_dates,
+                        y=pred_data,
+                        mode='lines+markers',
+                        name=f'{method_name}',
+                        line=dict(color='red', width=2, dash='dash'),
+                        marker=dict(size=6)
+                    ))
+                    
+                    # Update layout
+                    fig.update_layout(
+                        title=f'{method_name} - {prediction_days} Day Forecast',
+                        xaxis_title='Date',
+                        yaxis_title='Price ($)',
+                        hovermode='x unified',
+                        showlegend=True,
+                        height=400
+                    )
+                    
+                    chart_html = fig.to_html(include_plotlyjs=False, div_id=f"prediction_{method_key}")
+                    
+                    html_section += f"""
+                    
+                        {method_name}
+
+                        {method_desc}
+
+                        {chart_html}
+                    
+                    """
+                    
+            except Exception as method_error:
+                html_section += f"Error generating {method_name}: {str(method_error)}\n"
+        
+        # Add prediction metrics and disclaimer
         try:
-            from utils.predictions import PricePredictions
+            confidence_data = predictions.calculate_prediction_confidence()
+            disclaimer = predictions.get_prediction_disclaimer()
             
-            # Initialize predictions with historical data
-            predictions = PricePredictions(historical_data)
-            
-            # Generate predictions for 7 days using all three methods
-            prediction_days = 7
-            methods = [
-                ("technical_analysis", "Technical Analysis Prediction", "Advanced technical indicators and momentum analysis"),
-                ("linear_trend", "Linear Trend Prediction", "Statistical trend analysis and regression modeling"),
-                ("moving_average", "Moving Average Prediction", "Simple and exponential moving average forecasting")
+            # Format metrics with type checking
+            metrics = [
+                ("Confidence Level", confidence_data.get('confidence_level', 'N/A'), "%"),
+                ("Trend Strength", confidence_data.get('trend_strength', 'N/A'), ""),
+                ("Data Quality", confidence_data.get('data_quality', 'N/A'), ""),
+                ("Volatility Risk", confidence_data.get('volatility_risk', 0), "%")
             ]
             
-            for method_key, method_name, method_desc in methods:
-                try:
-                    pred_data = predictions.predict_prices(prediction_days, method_key)
-                    
-                    if pred_data and len(pred_data) > 0:
-                        # Create prediction chart
-                        import plotly.graph_objects as go
-                        from plotly.subplots import make_subplots
-                        
-                        # Get recent historical prices for context
-                        recent_data = historical_data.tail(20)
-                        historical_dates = recent_data.index if hasattr(recent_data, 'index') else range(len(recent_data))
-                        historical_prices = recent_data['Close'].values
-                        
-                        # Generate future dates
-                        import pandas as pd
-                        if isinstance(historical_dates, pd.DatetimeIndex) and len(historical_dates) > 0:
-                            last_date = historical_dates[-1]
-                        else:
-                            last_date = pd.Timestamp.now()
-                        future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=prediction_days, freq='D')
-                        
-                        # Create chart
-                        fig = go.Figure()
-                        
-                        # Historical prices
-                        fig.add_trace(go.Scatter(
-                            x=historical_dates,
-                            y=historical_prices,
-                            mode='lines',
-                            name='Historical Prices',
-                            line=dict(color='blue', width=2)
-                        ))
-                        
-                        # Predicted prices
-                        fig.add_trace(go.Scatter(
-                            x=future_dates,
-                            y=pred_data,
-                            mode='lines+markers',
-                            name=f'{method_name}',
-                            line=dict(color='red', width=2, dash='dash'),
-                            marker=dict(size=6)
-                        ))
-                        
-                        # Update layout
-                        fig.update_layout(
-                            title=f'{method_name} - {prediction_days} Day Forecast',
-                            xaxis_title='Date',
-                            yaxis_title='Price ($)',
-                            hovermode='x unified',
-                            showlegend=True,
-                            height=400
-                        )
-                        
-                        chart_html = fig.to_html(include_plotlyjs=False, div_id=f"prediction_{method_key}")
-                        
-                        html_section += f"""
-                        
-                            {method_name}
-
-                            {method_desc}
-
-                            {chart_html}
-                        
-
-                        """
-                        
-                except Exception as method_error:
-                    html_section += f"Error generating {method_name}: {str(method_error)}
-"
+            html_section += """
             
-            # Add prediction metrics and disclaimer
-            try:
-                confidence_data = predictions.calculate_prediction_confidence()
-                disclaimer = predictions.get_prediction_disclaimer()
-                
-                # Format metrics with type checking
-                metrics = [
-                    ("Confidence Level", confidence_data.get('confidence_level', 'N/A'), "%"),
-                    ("Trend Strength", confidence_data.get('trend_strength', 'N/A'), ""),
-                    ("Data Quality", confidence_data.get('data_quality', 'N/A'), ""),
-                    ("Volatility Risk", confidence_data.get('volatility_risk', 0), "%")
-                ]
-                
-                html_section += """
-                
-                    Prediction Metrics & Reliability
+                Prediction Metrics & Reliability
 
-                    
-                        	Metric	Value
-                """
                 
-                for metric, value, suffix in metrics:
-                    if isinstance(value, (int, float)):
-                        formatted_value = f"{value:.1f}{suffix}" if suffix == "%" else f"{value:.1f}"
-                    else:
-                        formatted_value = str(value)
-                    html_section += f"""
-                        	{metric}	{formatted_value}
-                    """
+                    Metric	Value
                 
-                html_section += f"""
-                    
-
+            """
+            
+            for metric, value, suffix in metrics:
+                formatted_value = f"{value:.1f}{suffix}" if isinstance(value, (int, float)) else str(value)
+                html_section += f"    {metric}	{formatted_value}\n"
+            
+            html_section += f"""
+                
                     
                         {disclaimer}
-
                     
-
-                """
                 
-            except Exception as metrics_error:
-                html_section += f"Error generating prediction metrics: {str(metrics_error)}
-"
+            """
             
-        except Exception as e:
-            html_section += f"Error initializing predictions: {str(e)}
-"
+        except Exception as metrics_error:
+            html_section += f"Error generating prediction metrics: {str(metrics_error)}\n"
         
-        html_section += "
-"
-        return html_section
+    except Exception as e:
+        html_section += f"Error initializing predictions: {str(e)}\n"
+    
+    html_section += "\n"
+    return html_section
     
     def _generate_3d_charts_section(self, visualizations) -> str:
         """Generate 3D visualization charts section for HTML report."""
