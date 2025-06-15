@@ -286,7 +286,7 @@ class RiskGauge:
         
         # Add candlestick
         fig.add_trace(go.Candlestick(
-            x=data['Date'],
+            x=data['Datetime'],
             open=data['Open'],
             high=data['High'],
             low=data['Low'],
@@ -306,7 +306,7 @@ class RiskGauge:
         )
         
         fig.add_trace(go.Candlestick(
-            x=data['Date'],
+            x=data['Datetime'],
             open=data['Open'],
             high=data['High'],
             low=data['Low'],
@@ -315,7 +315,7 @@ class RiskGauge:
         ), row=1, col=1)
         
         fig.add_trace(go.Bar(
-            x=data['Date'],
+            x=data['Datetime'],
             y=data['Volume'],
             name="Volume",
             marker_color='lightblue'
