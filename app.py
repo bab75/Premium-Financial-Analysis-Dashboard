@@ -1206,16 +1206,6 @@ def advanced_analytics_section():
                     pred_prices = predictions.predict_prices(pred_days, pred_method)
 
                     if pred_prices:
-                        # Store prediction results in session state for HTML report
-                        st.session_state.prediction_results = {
-                            'prices': pred_prices,
-                            'method': pred_method,
-                            'chart': predictions.create_prediction_chart(pred_prices, pred_days),
-                            'confidence': predictions.calculate_prediction_confidence(),
-                            'disclaimer': predictions.get_prediction_disclaimer()
-                        }
-                        st.session_state.prediction_days = pred_days
-                        
                         # Create prediction chart
                         pred_chart = predictions.create_prediction_chart(pred_prices, pred_days)
                         st.plotly_chart(pred_chart, use_container_width=True, key="predictions_chart")
@@ -1690,14 +1680,6 @@ def advanced_analytics_section():
                     if st.session_state.current_data is not None and st.session_state.previous_data is not None:
                         advanced_analytics = EnhancedComparativeAnalysis(st.session_state.current_data, st.session_state.previous_data)
                     
-                    # Check if predictions were generated in the session
-                    prediction_data = None
-                    prediction_days = None
-                    
-                    if 'prediction_results' in st.session_state and 'prediction_days' in st.session_state:
-                        prediction_data = st.session_state.prediction_results
-                        prediction_days = st.session_state.prediction_days
-                    
                     # Generate comprehensive report with all features
                     report_generator = HTMLReportGenerator()
                     html_content = report_generator.generate_comprehensive_report(
@@ -1706,8 +1688,7 @@ def advanced_analytics_section():
                         tech_indicators=tech_indicators,
                         analytics=analytics,
                         visualizations=viz,
-                        prediction_data=prediction_data,
-                        prediction_days=prediction_days,
+                        predictions=clean_data_for_components,  # Pass historical data for predictions
                         advanced_analytics=advanced_analytics,
                         report_type="full"
                     )
