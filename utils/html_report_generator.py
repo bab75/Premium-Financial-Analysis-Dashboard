@@ -486,12 +486,11 @@ class HTMLReportGenerator:
     
     def _generate_prediction_charts_section(self, historical_data) -> str:
     """Generate prediction charts section for HTML report using actual PricePredictions class."""
-    html_section = """
+    html_section = ""
     
-        📈 Price Predictions
-
-        Technical analysis, linear trend, and moving average predictions for future price movements.
-
+    html_section += """
+        <h2>📈 Price Predictions</h2>
+        <p>Technical analysis, linear trend, and moving average predictions for future price movements.</p>
     """
     
     try:
@@ -547,14 +546,14 @@ class HTMLReportGenerator:
                         x=future_dates,
                         y=pred_data,
                         mode='lines+markers',
-                        name=f'{method_name}',
+                        name=method_name,
                         line=dict(color='red', width=2, dash='dash'),
                         marker=dict(size=6)
                     ))
                     
                     # Update layout
                     fig.update_layout(
-                        title=f'{method_name} - {prediction_days} Day Forecast',
+                        title=f"{method_name} - {prediction_days} Day Forecast",
                         xaxis_title='Date',
                         yaxis_title='Price ($)',
                         hovermode='x unified',
@@ -564,18 +563,12 @@ class HTMLReportGenerator:
                     
                     chart_html = fig.to_html(include_plotlyjs=False, div_id=f"prediction_{method_key}")
                     
-                    html_section += f"""
-                    
-                        {method_name}
-
-                        {method_desc}
-
-                        {chart_html}
-                    
-                    """
+                    html_section += f"<h3>{method_name}</h3>"
+                    html_section += f"<p>{method_desc}</p>"
+                    html_section += chart_html
                     
             except Exception as method_error:
-                html_section += f"Error generating {method_name}: {str(method_error)}\n"
+                html_section += f"<p>Error generating {method_name}: {str(method_error)}</p>"
         
         # Add prediction metrics and disclaimer
         try:
@@ -591,33 +584,27 @@ class HTMLReportGenerator:
             ]
             
             html_section += """
-            
-                Prediction Metrics & Reliability
-
-                
-                    Metric	Value
-                
+                <h3>Prediction Metrics & Reliability</h3>
+                <table>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Value</th>
+                    </tr>
             """
             
             for metric, value, suffix in metrics:
                 formatted_value = f"{value:.1f}{suffix}" if isinstance(value, (int, float)) else str(value)
-                html_section += f"    {metric}	{formatted_value}\n"
+                html_section += f"<tr><td>{metric}</td><td>{formatted_value}</td></tr>"
             
-            html_section += f"""
-                
-                    
-                        {disclaimer}
-                    
-                
-            """
+            html_section += "</table>"
+            html_section += f"<p><em>{disclaimer}</em></p>"
             
         except Exception as metrics_error:
-            html_section += f"Error generating prediction metrics: {str(metrics_error)}\n"
+            html_section += f"<p>Error generating prediction metrics: {str(metrics_error)}</p>"
         
     except Exception as e:
-        html_section += f"Error initializing predictions: {str(e)}\n"
+        html_section += f"<p>Error initializing predictions: {str(e)}</p>"
     
-    html_section += "\n"
     return html_section
     
     def _generate_3d_charts_section(self, visualizations) -> str:
