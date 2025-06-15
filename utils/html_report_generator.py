@@ -298,7 +298,7 @@ class HTMLReportGenerator:
     
     def _generate_prediction_charts_section(self, stock_symbol: str, historical_data: pd.DataFrame, prediction_data: Dict, prediction_days: int) -> str:
         """Generate prediction charts and price table section for HTML report."""
-        html_section = "<section class='card p-6'><h2 class='text-2xl font-semibold text-gray-800 mb-4'>📈 Price Predictions</h2><p class='text-gray-600 mb-4'>Price predictions based on " + prediction_data.get('method', 'unknown method') + " for the next " + str(prediction_days) + " days.</p>"
+        html_section = "<section class='card p-6'><h2 class='text-2xl font-semibold text-gray-800 mb-4'>📈 Price Predictions</h2><p class='text-gray-600 mb-4'>Price predictions based on " + prediction_data.get('method', 'unknown method').replace('_', ' ').title() + " for the next " + str(prediction_days) + " days.</p>"
         
         try:
             import pandas as pd
@@ -310,7 +310,7 @@ class HTMLReportGenerator:
                 predictions_to_save = {
                     prediction_data['method']: {
                         'prices': [float(p) for p in prediction_data['prices']],
-                        'dates': [(historical_data.index[-1] + pd.Timedelta(days=i+1)).strftime('%Y-%m-%d') for i in range(prediction_days)],
+                        'dates': [(pd.Timestamp(historical_data.index[-1]) + pd.Timedelta(days=i+1)).strftime('%Y-%m-%d') for i in range(prediction_days)],
                         'description': 'Prediction based on ' + prediction_data['method'],
                         'confidence': prediction_data.get('confidence', {}),
                         'disclaimer': prediction_data.get('disclaimer', '')
