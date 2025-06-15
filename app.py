@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -76,6 +77,7 @@ def data_upload_section():
             if key in st.session_state:
                 del st.session_state[key]
                 cleared_count += 1
+        # Clear file uploader states
         for key in list(st.session_state.keys()):
             key_str = str(key).lower()
             if 'file' in key_str or 'data' in key_str:
@@ -153,6 +155,7 @@ def data_upload_section():
                 st.balloons()
 
     st.subheader("📉 Historical Price Data (Optional)")
+    st.info("Upload historical price data to enable technical analysis and visualizations without yfinance.")
     historical_file = st.file_uploader(
         "Upload Historical Price Data (Excel/CSV)",
         type=['xlsx', 'xls', 'csv'],
@@ -163,17 +166,28 @@ def data_upload_section():
     if historical_file is not None:
         try:
             with st.spinner("Processing historical data..."):
-                fallback_processor = DataProcessor()
-                historical_data, extracted_symbol = fallback_processor.process_historical_data(historical_file)
+                processor = DataProcessor()
+                historical_data, extracted_symbol = processor.process_historical_data(historical_file)
                 if historical_data is not None:
-                    st.session_state.historical_data = historical_data
-                    if extracted_symbol:
-                        st.session_state.selected_symbol = extracted_symbol
-                    st.success(f"✅ Historical data loaded successfully! ({len(historical_data)} data points)")
-                    if extracted_symbol:
-                        st.info(f"📊 Detected symbol: {extracted_symbol}")
-                    with st.expander("📋 Historical Data Preview"):
-                        st.dataframe(historical_data.head(), use_container_width=True)
+                    # Validate and clean historical data
+                    required_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+                    missing_cols = [col for col in required_columns if col not in historical_data.columns]
+                    if missing_cols:
+                        st.error(f"Missing required columns: {', '.join(missing_cols)}")
+                    else:
+                        historical_data = historical_data.rename(columns={'Date': 'Datetime'})
+                        historical_data['Datetime'] = pd.to_datetime(historical_data['Datetime'])
+                        historical_data = historical_data.set_index('Datetime')
+                        if 'Adj Close' not in historical_data.columns:
+                            historical_data['Adj Close'] = historical_data['Close']
+                        st.session_state.historical_data = historical_data
+                        if extracted_symbol:
+                            st.session_state.selected_symbol = extracted_symbol
+                        st.success(f"✅ Historical data loaded successfully! ({len(historical_data)} data points)")
+                        if extracted_symbol:
+                            st.info(f"📊 Detected symbol: {extracted_symbol}")
+                        with st.expander("📋 Historical Data Preview"):
+                            st.dataframe(historical_data.head(), use_container_width=True)
                 else:
                     st.error("Failed to process historical data file. Please check the format.")
         except Exception as e:
@@ -347,7 +361,7 @@ def phase1_comparative_analysis_section():
                 with filter_col1:
                     available_symbols = comp_analysis.get_all_symbols()
                     if available_symbols:
-                        search_symbol = st.selectbox("Select Stock Symbol:", ["None"] + available_symbols, index=0, help="Select a symbol to analyze")
+                        search_symbol = st.selectbox("Select Stock Symbol:", ["None"] + available_symbols, index=0, help="Select a symbol to analyze", key="filter_search_symbol")
                         if search_symbol != "None":
                             st.session_state.selected_stock_symbol = search_symbol
                     else:
@@ -356,7 +370,7 @@ def phase1_comparative_analysis_section():
                 with filter_col2:
                     available_sectors = comp_analysis.get_available_sectors()
                     if available_sectors:
-                        selected_sector = st.selectbox("Filter by Sector:", available_sectors, index=0)
+                        selected_sector = st.selectbox("Filter by Sector:", available_sectors, index=0, key="filter_sector")
                     else:
                         selected_sector = "All"
                         st.info("Sector data not available")
@@ -364,31 +378,32 @@ def phase1_comparative_analysis_section():
                     performance_filter = st.selectbox(
                         "Filter by Performance",
                         ["All Stocks", "Gainers Only", "Losers Only", "Top 10 Performers", "Bottom 10 Performers"],
-                        help="Filter stocks based on performance"
+                        help="Filter stocks based on performance",
+                        key="filter_performance"
                     )
                 with filter_col4:
-                    min_change = st.number_input("Min Change %", value=float(valid_data['Price_Change_Pct'].min()), help="Minimum price change percentage")
+                    min_change = st.number_input("Min Change %", value=float(valid_data['Price_Change_Pct'].min()), help="Minimum price change percentage", key="filter_min_change")
                 filter_col5, filter_col6 = st.columns(2)
                 with filter_col5:
-                    max_change = st.number_input("Max Change %", value=float(valid_data['Price_Change_Pct'].max()), help="Maximum price change percentage")
+                    max_change = st.number_input("Max Change %", value=float(valid_data['Price_Change_Pct'].max()), help="Maximum price change percentage", key="filter_max_change")
                 with filter_col6:
                     clear_filters_col1, clear_filters_col2 = st.columns(2)
                     with clear_filters_col1:
                         if st.button("🔍 Search & Filter", type="primary"):
                             st.success("Filters applied!")
                     with clear_filters_col2:
-                        if st.button("🧹 Clear Filters", type="secondary", key="clear_filters"):
-                            keys_to_clear = ['selected_stock_symbol', 'filter_search_symbol', 'filter_sector', 'filter_performance', 'filter_min_change', 'filter_max_change']
-                            for key in keys_to_clear:
-                                if key in st.session_state:
-                                    del st.session_state[key]
+                        if st.button("🧹 Clear Filters", type="secondary", key="clear_filters_button"):
+                            # Clear all filter-related keys
+                            filter_keys = [key for key in st.session_state.keys() if 'filter_' in key or 'selected_stock_symbol' in key]
+                            for key in filter_keys:
+                                del st.session_state[key]
                             st.success("All filters cleared and reset to defaults!")
                             st.rerun()
                 filter_col4, filter_col5 = st.columns(2)
                 with filter_col4:
-                    profit_filter = st.number_input("Min Profit $", value=0.0, help="Show only stocks with profit above this amount")
+                    profit_filter = st.number_input("Min Profit $", value=0.0, help="Show only stocks with profit above this amount", key="filter_profit")
                 with filter_col5:
-                    loss_filter = st.number_input("Max Loss $", value=0.0, help="Show only stocks with loss below this amount (negative)")
+                    loss_filter = st.number_input("Max Loss $", value=0.0, help="Show only stocks with loss below this amount (negative)", key="filter_loss")
                 filtered_df = valid_data[(valid_data['Price_Change_Pct'] >= min_change) & (valid_data['Price_Change_Pct'] <= max_change)].copy()
                 if search_symbol and search_symbol != "None":
                     filtered_df = filtered_df[filtered_df['Symbol'] == search_symbol]
@@ -624,6 +639,10 @@ def phase2_deep_analysis_section():
                     if hist_data.empty:
                         st.error(f"No data available for {selected_stock} from yfinance for the selected period")
                         return
+                    # Clean yfinance data to avoid Datetime ambiguity
+                    hist_data = hist_data.reset_index()
+                    hist_data = hist_data.rename(columns={'Date': 'Datetime'})
+                    hist_data['Datetime'] = pd.to_datetime(hist_data['Datetime'])
                     st.session_state.yfinance_data = hist_data
                     st.session_state.selected_symbol = selected_stock
                     try:
@@ -639,8 +658,8 @@ def phase2_deep_analysis_section():
                         market_cap = 'Unknown'
                 if st.session_state.yfinance_data is not None and not st.session_state.yfinance_data.empty:
                     hist_data = st.session_state.yfinance_data
-                    start_date = pd.to_datetime(hist_data.index[0]).strftime('%Y-%m-%d')
-                    end_date = pd.to_datetime(hist_data.index[-1]).strftime('%Y-%m-%d')
+                    start_date = pd.to_datetime(hist_data['Datetime'].iloc[0]).strftime('%Y-%m-%d')
+                    end_date = pd.to_datetime(hist_data['Datetime'].iloc[-1]).strftime('%Y-%m-%d')
                     st.markdown(f"""
                     <div class="success-card">
                         <h3>📋 {company_name} ({selected_stock})</h3>
@@ -650,13 +669,13 @@ def phase2_deep_analysis_section():
                     col1, col2, col3, col4, col5 = st.columns(5)
                     with col1:
                         current_price = hist_data['Close'].iloc[-1]
-                        latest_date = pd.to_datetime(hist_data.index[-1]).strftime('%m-%d-%y')
+                        latest_date = pd.to_datetime(hist_data['Datetime'].iloc[-1]).strftime('%m-%d-%y')
                         st.metric("Current Price", f"${current_price:.2f}", help=f"As of {latest_date}")
                     with col2:
                         if len(hist_data) > 1:
                             price_change = hist_data['Close'].iloc[-1] - hist_data['Close'].iloc[-2]
                             price_change_pct = (price_change / hist_data['Close'].iloc[-2]) * 100
-                            previous_date = pd.to_datetime(hist_data.index[-2]).strftime('%m-%d-%y')
+                            previous_date = pd.to_datetime(hist_data['Datetime'].iloc[-2]).strftime('%m-%d-%y')
                             st.metric("Daily Change", f"${price_change:.2f}", delta=f"{price_change_pct:.2f}%")
                         else:
                             st.metric("Daily Change", "N/A")
@@ -670,15 +689,13 @@ def phase2_deep_analysis_section():
                             st.metric("Market Cap", f"${market_cap_b:.1f}B")
                         else:
                             st.metric("Market Cap", str(market_cap))
-                    hist_data_clean = hist_data.copy().reset_index()
+                    hist_data_clean = hist_data.copy()
                     if 'Adj Close' not in hist_data_clean.columns:
                         hist_data_clean['Adj Close'] = hist_data_clean['Close']
                         st.info("ℹ️ Using Close price for analysis (Adj Close not available)")
                     for col in ['Dividends', 'Stock Splits']:
                         if col not in hist_data_clean.columns:
                             hist_data_clean[col] = 0
-                    if 'Date' in hist_data_clean.columns:
-                        hist_data_clean = hist_data_clean.rename(columns={'Date': 'Datetime'})
                     st.subheader("📊 Advanced Price Visualizations")
                     if len(hist_data_clean) > 0:
                         viz = Visualizations(historical_data=hist_data_clean)
@@ -708,13 +725,14 @@ def phase2_deep_analysis_section():
                         for i, (indicator, signal_data) in enumerate(signals.items()):
                             with signal_cols[i % len(signal_cols)]:
                                 signal_value = signal_data.get('signal', 'Unknown')
-                                signal_strength = signal_data.get('strength', 'Unknown')
+                                # Placeholder strength if not provided
+                                strength = signal_data.get('strength', 'Moderate (Pending Implementation)')
                                 if 'buy' in signal_value.lower():
                                     st.markdown(f"""
                                     <div class="success-card">
                                         <h4>{indicator}</h4>
                                         <p><strong>{signal_value}</strong></p>
-                                        <p>Strength: {signal_strength}</p>
+                                        <p>Strength: {strength}</p>
                                     </div>
                                     """, unsafe_allow_html=True)
                                 elif 'sell' in signal_value.lower():
@@ -722,7 +740,7 @@ def phase2_deep_analysis_section():
                                     <div class="warning-card">
                                         <h4>{indicator}</h4>
                                         <p><strong>{signal_value}</strong></p>
-                                        <p>Strength: {signal_strength}</p>
+                                        <p>Strength: {strength}</p>
                                     </div>
                                     """, unsafe_allow_html=True)
                                 else:
@@ -730,7 +748,7 @@ def phase2_deep_analysis_section():
                                     <div class="metric-card">
                                         <h4>{indicator}</h4>
                                         <p><strong>{signal_value}</strong></p>
-                                        <p>Strength: {signal_strength}</p>
+                                        <p>Strength: {strength}</p>
                                     </div>
                                     """, unsafe_allow_html=True)
                     st.subheader("📈 Performance Metrics")
@@ -793,16 +811,22 @@ def advanced_analytics_section():
     if data_source is None or data_source.empty:
         st.error("No historical data available for analysis.")
         return
+    # Clean data to avoid Datetime ambiguity
     data_clean = data_source.copy()
     if hasattr(data_clean, 'reset_index'):
         data_clean = data_clean.reset_index()
+    if 'Datetime' in data_clean.columns and data_clean.index.name == 'Datetime':
+        data_clean = data_clean.drop(columns=['Datetime'])
+    elif 'Date' in data_clean.columns:
+        data_clean = data_clean.rename(columns={'Date': 'Datetime'})
+    if 'Datetime' not in data_clean.columns:
+        data_clean['Datetime'] = data_clean.index
+    data_clean['Datetime'] = pd.to_datetime(data_clean['Datetime'])
     if 'Adj Close' not in data_clean.columns:
         data_clean['Adj Close'] = data_clean['Close']
     for col in ['Dividends', 'Stock Splits']:
         if col not in data_clean.columns:
             data_clean[col] = 0
-    if 'Date' in data_clean.columns:
-        data_clean = data_clean.rename(columns={'Date': 'Datetime'})
     pred_tab, viz_tab, insights_tab = st.tabs(["🔮 Price Predictions", "📊 Advanced Visualizations", "💡 Trading Insights"])
     with pred_tab:
         st.subheader("🔮 Price Predictions")
@@ -1020,10 +1044,6 @@ def advanced_analytics_section():
                 st.plotly_chart(heatmap_fig, use_container_width=True, key="correlation_heatmap")
             except Exception as e:
                 st.warning(f"Could not generate Correlation Matrix: {str(e)}")
-            if 'Date' not in data_clean.columns:
-                data_clean = data_clean.reset_index()
-                if 'Date' not in data_clean.columns:
-                    data_clean['Date'] = data_clean.index
             st.subheader("📈 Professional Technical Analysis Chart")
             try:
                 candlestick_fig = risk_gauge.create_advanced_candlestick(data_clean)
@@ -1056,7 +1076,7 @@ def advanced_analytics_section():
             st.subheader("📋 Detailed Signal Analysis")
             for indicator, signal_data in trading_signals.items():
                 signal_value = signal_data.get('signal', 'Unknown')
-                strength = signal_data.get('strength', 'Unknown')
+                strength = signal_data.get('strength', 'Moderate (Pending Implementation)')
                 with st.expander(f"{indicator} - {signal_value}"):
                     st.write(f"**Current Signal:** {signal_value}")
                     st.write(f"**Signal Strength:** {strength}")
@@ -1139,11 +1159,13 @@ def advanced_analytics_section():
                 try:
                     from utils.html_report_generator import HTMLReportGenerator
                     stock_symbol = st.session_state.selected_stock_symbol or "STOCK"
+                    # Prepare clean data for report
                     clean_data_for_components = data_clean.copy()
-                    if 'Datetime' in clean_data_for_components.columns and isinstance(clean_data_for_components.index, pd.DatetimeIndex):
-                        clean_data_for_components = clean_data_for_components.drop(columns=['Datetime'])
-                    elif 'Datetime' in clean_data_for_components.columns:
-                        clean_data_for_components = clean_data_for_components.set_index('Datetime')
+                    clean_data_for_components = clean_data_for_components.reset_index(drop=True)
+                    if 'Datetime' in clean_data_for_components.columns:
+                        clean_data_for_components['Datetime'] = pd.to_datetime(clean_data_for_components['Datetime'])
+                    else:
+                        clean_data_for_components['Datetime'] = pd.date_range(start='2020-01-01', periods=len(clean_data_for_components), freq='D')
                     tech_indicators = TechnicalIndicators(clean_data_for_components)
                     analytics = Analytics(historical_data=clean_data_for_components)
                     viz = Visualizations(historical_data=clean_data_for_components)
@@ -1225,61 +1247,54 @@ def advanced_analytics_section():
                                 'sentiment': 50 + (price_trend * 0.5),
                                 'liquidity': min(100, max(20, 100 - volume_volatility))
                             }
-                            visualizations_dict['risk_gauge'] = risk_gauge.create_risk_gauge(risk_data['risk_score'], "Overall Risk")
+                                                        visualizations_dict['risk_gauge'] = risk_gauge.create_risk_gauge(risk_data['risk_score'], "Overall Risk")
                             visualizations_dict['volatility_gauge'] = risk_gauge.create_volatility_gauge(risk_data['volatility'])
-                            visualizations_dict['performance_gauge'] = risk_gauge.create_performance_gauge(price_trend)
+                            visualizations_dict['performance_gauge'] = risk_gauge.create_performance_gauge(risk_data['performance'])
                             visualizations_dict['advanced_dashboard'] = risk_gauge.create_advanced_dashboard(risk_data)
                         except Exception as e:
-                            st.warning(f"Error generating risk gauges for report: {str(e)}")
-                    try:
-                        visualizations_dict['moving_averages'] = tech_indicators.create_moving_averages_chart()
-                        visualizations_dict['rsi_chart'] = tech_indicators.create_rsi_chart()
-                        visualizations_dict['macd_chart'] = tech_indicators.create_macd_chart()
-                        visualizations_dict['bollinger_bands'] = tech_indicators.create_bollinger_bands_chart()
-                    except Exception as e:
-                        st.warning(f"Error generating technical indicator charts for report: {str(e)}")
+                            st.warning(f"Error generating gauge visualizations for report: {str(e)}")
+                    if len(clean_data_for_components) > 50:
+                        try:
+                            visualizations_dict['moving_averages'] = tech_indicators.create_moving_averages_chart()
+                            visualizations_dict['rsi_chart'] = tech_indicators.create_rsi_chart()
+                            visualizations_dict['macd_chart'] = tech_indicators.create_macd_chart()
+                            visualizations_dict['bollinger_bands'] = tech_indicators.create_bollinger_bands_chart()
+                        except Exception as e:
+                            st.warning(f"Error generating technical indicator charts for report: {str(e)}")
+                    # Initialize predictions
+                    predictions = PricePredictions(clean_data_for_components)
+                    # Initialize comparative analysis if available
                     advanced_analytics = None
                     if st.session_state.current_data is not None and st.session_state.previous_data is not None:
-                        advanced_analytics = EnhancedComparativeAnalysis(st.session_state.current_data, st.session_state.previous_data)
+                        try:
+                            advanced_analytics = EnhancedComparativeAnalysis(
+                                st.session_state.current_data, 
+                                st.session_state.previous_data
+                            )
+                        except Exception as e:
+                            st.warning(f"Error initializing comparative analysis for report: {str(e)}")
+                    # Generate report
                     report_generator = HTMLReportGenerator()
-                    html_content = report_generator.generate_comprehensive_report(
-                        stock_symbol=stock_symbol,
-                        historical_data=clean_data_for_components,
-                        tech_indicators=tech_indicators,
-                        analytics=analytics,
-                        visualizations=viz,
-                        predictions=clean_data_for_components,
-                        advanced_analytics=advanced_analytics,
-                        additional_figures=visualizations_dict,
-                        report_type="full"
-                    )
+                    with st.spinner("Generating comprehensive HTML report..."):
+                        report_content = report_generator.generate_comprehensive_report(
+                            stock_symbol=stock_symbol,
+                            historical_data=clean_data_for_components,
+                            tech_indicators=tech_indicators,
+                            analytics=analytics,
+                            visualizations=viz,
+                            predictions=predictions,
+                            advanced_analytics=advanced_analytics,
+                            additional_figures=visualizations_dict,
+                            report_type="full"
+                        )
+                    # Provide download button
                     st.download_button(
                         label="📥 Download HTML Report",
-                        data=html_content,
-                        file_name=f"financial_analysis_report_{stock_symbol}_{dt.now().strftime('%Y%m%d_%H%M%S')}.html",
-                        mime="text/html"
+                        data=report_content,
+                        file_name=f"Financial_Analysis_Report_{stock_symbol}_{dt.now().strftime('%Y%m%d_%H%M%S')}.html",
+                        mime="text/html",
+                        use_container_width=True
                     )
-                    st.success("✅ Report generated successfully!")
+                    st.success("✅ Report generated successfully! Download the HTML file to view interactive charts.")
                 except Exception as e:
                     st.error(f"Error generating report: {str(e)}")
-                    st.info("Please ensure all required data is available and try again.")
-
-# Main app execution
-def main():
-    st.title("📊 Premium Financial Analysis Dashboard")
-    st.markdown("A comprehensive platform for stock market analysis with advanced visualizations and predictions")
-    tab1, tab2, tab3 = st.tabs(["📁 Data Upload", "📊 Phase 1: Comparative Analysis", "🔮 Phase 2: Deep Analysis & Advanced Analytics"])
-    with tab1:
-        data_upload_section()
-    with tab2:
-        phase1_comparative_analysis_section()
-    with tab3:
-        st.subheader("🔍 Phase 2: Deep Stock Analysis")
-        phase2_deep_analysis_section()
-        st.markdown("---")
-        st.subheader("🔮 Advanced Analytics & Predictions")
-        advanced_analytics_section()
-
-if __name__ == "__main__":
-    main()
-
