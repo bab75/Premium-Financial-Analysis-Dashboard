@@ -1297,3 +1297,23 @@ def advanced_analytics_section():
                     st.success("✅ Report generated successfully! Download the HTML file to view interactive charts.")
                 except Exception as e:
                     st.error(f"Error generating report: {str(e)}")
+                    st.info("Please ensure all required data is available and try again.")
+
+# Main app execution
+def main():
+    st.title("📊 Premium Financial Analysis Dashboard")
+    st.markdown("A comprehensive platform for stock market analysis with advanced visualizations and predictions")
+    tab1, tab2, tab3 = st.tabs(["📁 Data Upload", "📊 Phase 1: Comparative Analysis", "🔮 Phase 2: Deep Analysis & Advanced Analytics"])
+    with tab1:
+        data_upload_section()
+    with tab2:
+        phase1_comparative_analysis_section()
+    with tab3:
+        st.subheader("🔍 Phase 2: Deep Stock Analysis")
+        phase2_deep_analysis_section()
+        st.markdown("---")
+        st.subheader("🔮 Advanced Analytics & Predictions")
+        advanced_analytics_section()
+
+if __name__ == "__main__":
+    main()
