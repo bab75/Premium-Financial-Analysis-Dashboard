@@ -192,8 +192,7 @@ class HTMLReportGenerator:
                                     tech_indicators,
                                     analytics,
                                     visualizations,
-                                    prediction_data=None,
-                                    prediction_days=None,
+                                    predictions=None,
                                     advanced_analytics=None,
                                     report_type: str = "full") -> str:
         """Generate a comprehensive HTML report with all analysis components."""
@@ -244,8 +243,8 @@ class HTMLReportGenerator:
         html_content += self._generate_risk_analysis(analytics, historical_data)
         
         # Add prediction charts if available
-        if prediction_data is not None and report_type in ["full", "predictions"]:
-            html_content += self._generate_prediction_charts_section(prediction_data, prediction_days, historical_data)
+        if predictions is not None and report_type in ["full", "predictions"]:
+            html_content += self._generate_prediction_charts_section(predictions)
         
         # Add 3D visualization charts if available
         if visualizations is not None and report_type in ["full", "advanced"]:
@@ -541,174 +540,123 @@ class HTMLReportGenerator:
         
         return filename
     
-    def _generate_prediction_charts_section(self, prediction_data, prediction_days, historical_data) -> str:
-        """Generate prediction charts section for HTML report using stored prediction data."""
+    def _generate_prediction_charts_section(self, historical_data) -> str:
+        """Generate prediction charts section for HTML report using actual PricePredictions class."""
         html_section = """
         <div class="section">
             <h2>📈 Price Predictions</h2>
+            <p>Technical analysis, linear trend, and moving average predictions for future price movements.</p>
         """
         
-        if prediction_data is None:
-            html_section += """
-            <p>No price predictions generated. Generate predictions in the application first to include them in the report.</p>
-            </div>
-            """
-            return html_section
-        
-        html_section += f"<p>Price predictions for {prediction_days} days using {prediction_data.get('method', 'selected')} method.</p>"
-        
         try:
-            # Get stored prediction results
-            pred_prices = prediction_data.get('prices', [])
-            method = prediction_data.get('method', 'technical_analysis')
-            confidence_data = prediction_data.get('confidence', {})
-            disclaimer = prediction_data.get('disclaimer', '')
+            from utils.predictions import PricePredictions
             
-            if pred_prices and len(pred_prices) > 0:
-                # Create prediction chart using stored data
-                import plotly.graph_objects as go
-                import pandas as pd
-                from datetime import datetime, timedelta
-                
-                # Get recent historical prices for context
-                recent_data = historical_data.tail(20)
-                historical_dates = recent_data.index
-                historical_prices = recent_data['Close'].values
-                
-                # Generate future dates for predictions
-                if isinstance(historical_dates, pd.DatetimeIndex) and len(historical_dates) > 0:
-                    last_date = historical_dates[-1]
-                else:
-                    last_date = pd.Timestamp.now()
-                
-                future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=len(pred_prices), freq='D')
-                
-                # Create chart
-                fig = go.Figure()
-                
-                # Historical prices
-                fig.add_trace(go.Scatter(
-                    x=historical_dates,
-                    y=historical_prices,
-                    mode='lines',
-                    name='Historical Prices',
-                    line=dict(color='blue', width=2),
-                    hovertemplate='<b>Date:</b> %{x|%m-%d-%Y}<br>Price: $%{y:.2f}<extra></extra>'
-                ))
-                
-                # Predicted prices
-                method_name = {
-                    'technical_analysis': 'Technical Analysis',
-                    'linear_trend': 'Linear Trend',
-                    'moving_average': 'Moving Average'
-                }.get(method, method.replace('_', ' ').title())
-                
-                fig.add_trace(go.Scatter(
-                    x=future_dates,
-                    y=pred_prices,
-                    mode='lines+markers',
-                    name=f'{method_name} Prediction',
-                    line=dict(color='red', width=2, dash='dash'),
-                    marker=dict(size=6),
-                    hovertemplate='<b>Date:</b> %{x|%m-%d-%Y}<br>Predicted: $%{y:.2f}<extra></extra>'
-                ))
-                
-                # Update layout with MM-DD-YYYY format
-                fig.update_layout(
-                    title=f'{method_name} Price Prediction - {prediction_days} Days',
-                    xaxis_title='Date',
-                    yaxis_title='Price ($)',
-                    hovermode='x unified',
-                    showlegend=True,
-                    height=400,
-                    xaxis=dict(
-                        type='date',
-                        showticklabels=True,
-                        showgrid=True,
-                        hoverformat='%m-%d-%Y'
-                    )
-                )
-                
-                chart_html = fig.to_html(include_plotlyjs=False, div_id=f"prediction_chart")
+            # Initialize predictions with historical data
+            predictions = PricePredictions(historical_data)
+            
+            # Generate predictions for 7 days using all three methods
+            prediction_days = 7
+            methods = [
+                ("technical_analysis", "Technical Analysis Prediction", "Advanced technical indicators and momentum analysis"),
+                ("linear_trend", "Linear Trend Prediction", "Statistical trend analysis and regression modeling"),
+                ("moving_average", "Moving Average Prediction", "Simple and exponential moving average forecasting")
+            ]
+            
+            for method_key, method_name, method_desc in methods:
+                try:
+                    pred_data = predictions.predict_prices(prediction_days, method_key)
+                    
+                    if pred_data and len(pred_data) > 0:
+                        # Create prediction chart
+                        import plotly.graph_objects as go
+                        from plotly.subplots import make_subplots
+                        
+                        # Get recent historical prices for context
+                        recent_data = historical_data.tail(20)
+                        historical_dates = recent_data.index if hasattr(recent_data, 'index') else range(len(recent_data))
+                        historical_prices = recent_data['Close'].values
+                        
+                        # Generate future dates
+                        import pandas as pd
+                        if isinstance(historical_dates, pd.DatetimeIndex) and len(historical_dates) > 0:
+                            last_date = historical_dates[-1]
+                        else:
+                            last_date = pd.Timestamp.now()
+                        future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=prediction_days, freq='D')
+                        
+                        # Create chart
+                        fig = go.Figure()
+                        
+                        # Historical prices
+                        fig.add_trace(go.Scatter(
+                            x=historical_dates,
+                            y=historical_prices,
+                            mode='lines',
+                            name='Historical Prices',
+                            line=dict(color='blue', width=2)
+                        ))
+                        
+                        # Predicted prices
+                        fig.add_trace(go.Scatter(
+                            x=future_dates,
+                            y=pred_data,
+                            mode='lines+markers',
+                            name=f'{method_name}',
+                            line=dict(color='red', width=2, dash='dash'),
+                            marker=dict(size=6)
+                        ))
+                        
+                        # Update layout
+                        fig.update_layout(
+                            title=f'{method_name} - {prediction_days} Day Forecast',
+                            xaxis_title='Date',
+                            yaxis_title='Price ($)',
+                            hovermode='x unified',
+                            showlegend=True,
+                            height=400
+                        )
+                        
+                        chart_html = fig.to_html(include_plotlyjs=False, div_id=f"prediction_{method_key}")
+                        
+                        html_section += f"""
+                        <div class="chart-container">
+                            <h3>{method_name}</h3>
+                            <p>{method_desc}</p>
+                            {chart_html}
+                        </div>
+                        """
+                        
+                except Exception as method_error:
+                    html_section += f"<p>Error generating {method_name}: {str(method_error)}</p>"
+            
+            # Add prediction metrics and disclaimer
+            try:
+                confidence_data = predictions.calculate_prediction_confidence()
+                disclaimer = predictions.get_prediction_disclaimer()
                 
                 html_section += f"""
                 <div class="chart-container">
-                    <h3>{method_name} Prediction Chart</h3>
-                    {chart_html}
-                </div>
-                """
-                
-                # Add prediction table for easy readability
-                current_date = datetime.now()
-                pred_dates = [current_date + timedelta(days=i+1) for i in range(len(pred_prices))]
-                
-                html_section += f"""
-                <div class="chart-container">
-                    <h3>Predicted Prices Table</h3>
+                    <h3>Prediction Metrics & Reliability</h3>
                     <div class="summary-table">
                         <table style="width: 100%; border-collapse: collapse;">
-                            <tr>
-                                <th style="padding: 8px; border: 1px solid #ddd;">Date</th>
-                                <th style="padding: 8px; border: 1px solid #ddd;">Day</th>
-                                <th style="padding: 8px; border: 1px solid #ddd;">Predicted Price</th>
-                            </tr>
-                """
-                
-                for i, (date, price) in enumerate(zip(pred_dates, pred_prices)):
-                    html_section += f"""
-                            <tr>
-                                <td style="padding: 8px; border: 1px solid #ddd;">{date.strftime('%Y-%m-%d')}</td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">Day {i+1}</td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">${price:.2f}</td>
-                            </tr>
-                    """
-                
-                html_section += """
+                            <tr><th style="padding: 8px; border: 1px solid #ddd;">Metric</th><th style="padding: 8px; border: 1px solid #ddd;">Value</th></tr>
+                            <tr><td style="padding: 8px; border: 1px solid #ddd;">Confidence Level</td><td style="padding: 8px; border: 1px solid #ddd;">{confidence_data.get('confidence_level', 'N/A'):.1f}%</td></tr>
+                            <tr><td style="padding: 8px; border: 1px solid #ddd;">Trend Strength</td><td style="padding: 8px; border: 1px solid #ddd;">{confidence_data.get('trend_strength', 'N/A')}</td></tr>
+                            <tr><td style="padding: 8px; border: 1px solid #ddd;">Data Quality</td><td style="padding: 8px; border: 1px solid #ddd;">{confidence_data.get('data_quality', 'N/A')}</td></tr>
+                            <tr><td style="padding: 8px; border: 1px solid #ddd;">Volatility Risk</td><td style="padding: 8px; border: 1px solid #ddd;">{confidence_data.get('volatility_risk', 0):.2f}%</td></tr>
                         </table>
+                    </div>
+                    <div style="margin-top: 15px; padding: 10px; background-color: #fff3cd; border-left: 4px solid #ffc107;">
+                        <pre style="white-space: pre-wrap; font-family: inherit; margin: 0;">{disclaimer}</pre>
                     </div>
                 </div>
                 """
                 
-                # Add prediction metrics and disclaimer
-                if confidence_data:
-                    # Fix confidence level formatting - handle string values
-                    confidence_level = confidence_data.get('confidence_level', 'N/A')
-                    if isinstance(confidence_level, str) and '%' in confidence_level:
-                        confidence_display = confidence_level
-                    else:
-                        try:
-                            confidence_display = f"{float(confidence_level):.1f}%"
-                        except:
-                            confidence_display = str(confidence_level)
-                    
-                    volatility_risk = confidence_data.get('volatility_risk', 0)
-                    try:
-                        volatility_display = f"{float(volatility_risk):.2f}%"
-                    except:
-                        volatility_display = str(volatility_risk)
-                    
-                    html_section += f"""
-                    <div class="chart-container">
-                        <h3>Prediction Metrics & Reliability</h3>
-                        <div class="summary-table">
-                            <table style="width: 100%; border-collapse: collapse;">
-                                <tr><th style="padding: 8px; border: 1px solid #ddd;">Metric</th><th style="padding: 8px; border: 1px solid #ddd;">Value</th></tr>
-                                <tr><td style="padding: 8px; border: 1px solid #ddd;">Confidence Level</td><td style="padding: 8px; border: 1px solid #ddd;">{confidence_display}</td></tr>
-                                <tr><td style="padding: 8px; border: 1px solid #ddd;">Trend Strength</td><td style="padding: 8px; border: 1px solid #ddd;">{confidence_data.get('trend_strength', 'N/A')}</td></tr>
-                                <tr><td style="padding: 8px; border: 1px solid #ddd;">Data Quality</td><td style="padding: 8px; border: 1px solid #ddd;">{confidence_data.get('data_quality', 'N/A')}</td></tr>
-                                <tr><td style="padding: 8px; border: 1px solid #ddd;">Volatility Risk</td><td style="padding: 8px; border: 1px solid #ddd;">{volatility_display}</td></tr>
-                            </table>
-                        </div>
-                        <div style="margin-top: 15px; padding: 10px; background-color: #fff3cd; border-left: 4px solid #ffc107;">
-                            <pre style="white-space: pre-wrap; font-family: inherit; margin: 0;">{disclaimer}</pre>
-                        </div>
-                    </div>
-                    """
-            else:
-                html_section += "<p>No prediction data available.</p>"
-                
+            except Exception as metrics_error:
+                html_section += f"<p>Error generating prediction metrics: {str(metrics_error)}</p>"
+            
         except Exception as e:
-            html_section += f"<p>Error generating prediction charts: {str(e)}</p>"
+            html_section += f"<p>Error initializing predictions: {str(e)}</p>"
         
         html_section += "</div>"
         return html_section
