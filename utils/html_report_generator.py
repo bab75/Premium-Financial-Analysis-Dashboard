@@ -630,45 +630,33 @@ class HTMLReportGenerator:
                     html_section += f"<p>Error generating {method_name}: {str(method_error)}</p>"
             
             # Add prediction metrics and disclaimer
-                if confidence_data:
-                    # Fix confidence level formatting - handle string values
-                    confidence_level = confidence_data.get('confidence_level', 'N/A')
-                    if isinstance(confidence_level, str) and '%' in confidence_level:
-                        confidence_display = confidence_level
-                    else:
-                        try:
-                            confidence_display = f"{float(confidence_level):.1f}%"
-                        except:
-                            confidence_display = str(confidence_level)
-                    
-                    volatility_risk = confidence_data.get('volatility_risk', 0)
-                    try:
-                        volatility_display = f"{float(volatility_risk):.2f}%"
-                    except:
-                        volatility_display = str(volatility_risk)
-                    
-                    html_section += f"""
-                    <div class="chart-container">
-                        <h3>Prediction Metrics & Reliability</h3>
-                        <div class="summary-table">
-                            <table style="width: 100%; border-collapse: collapse;">
-                                <tr><th style="padding: 8px; border: 1px solid #ddd;">Metric</th><th style="padding: 8px; border: 1px solid #ddd;">Value</th></tr>
-                                <tr><td style="padding: 8px; border: 1px solid #ddd;">Confidence Level</td><td style="padding: 8px; border: 1px solid #ddd;">{confidence_display}</td></tr>
-                                <tr><td style="padding: 8px; border: 1px solid #ddd;">Trend Strength</td><td style="padding: 8px; border: 1px solid #ddd;">{confidence_data.get('trend_strength', 'N/A')}</td></tr>
-                                <tr><td style="padding: 8px; border: 1px solid #ddd;">Data Quality</td><td style="padding: 8px; border: 1px solid #ddd;">{confidence_data.get('data_quality', 'N/A')}</td></tr>
-                                <tr><td style="padding: 8px; border: 1px solid #ddd;">Volatility Risk</td><td style="padding: 8px; border: 1px solid #ddd;">{volatility_display}</td></tr>
-                            </table>
-                        </div>
-                        <div style="margin-top: 15px; padding: 10px; background-color: #fff3cd; border-left: 4px solid #ffc107;">
-                            <pre style="white-space: pre-wrap; font-family: inherit; margin: 0;">{disclaimer}</pre>
-                        </div>
-                    </div>
-                    """
-            else:
-                html_section += "<p>No prediction data available.</p>"
+            try:
+                confidence_data = predictions.calculate_prediction_confidence()
+                disclaimer = predictions.get_prediction_disclaimer()
                 
+                html_section += f"""
+                <div class="chart-container">
+                    <h3>Prediction Metrics & Reliability</h3>
+                    <div class="summary-table">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr><th style="padding: 8px; border: 1px solid #ddd;">Metric</th><th style="padding: 8px; border: 1px solid #ddd;">Value</th></tr>
+                            <tr><td style="padding: 8px; border: 1px solid #ddd;">Confidence Level</td><td style="padding: 8px; border: 1px solid #ddd;">{confidence_data.get('confidence_level', 'N/A'):.1f}%</td></tr>
+                            <tr><td style="padding: 8px; border: 1px solid #ddd;">Trend Strength</td><td style="padding: 8px; border: 1px solid #ddd;">{confidence_data.get('trend_strength', 'N/A')}</td></tr>
+                            <tr><td style="padding: 8px; border: 1px solid #ddd;">Data Quality</td><td style="padding: 8px; border: 1px solid #ddd;">{confidence_data.get('data_quality', 'N/A')}</td></tr>
+                            <tr><td style="padding: 8px; border: 1px solid #ddd;">Volatility Risk</td><td style="padding: 8px; border: 1px solid #ddd;">{confidence_data.get('volatility_risk', 0):.2f}%</td></tr>
+                        </table>
+                    </div>
+                    <div style="margin-top: 15px; padding: 10px; background-color: #fff3cd; border-left: 4px solid #ffc107;">
+                        <pre style="white-space: pre-wrap; font-family: inherit; margin: 0;">{disclaimer}</pre>
+                    </div>
+                </div>
+                """
+                
+            except Exception as metrics_error:
+                html_section += f"<p>Error generating prediction metrics: {str(metrics_error)}</p>"
+            
         except Exception as e:
-            html_section += f"<p>Error generating prediction charts: {str(e)}</p>"
+            html_section += f"<p>Error initializing predictions: {str(e)}</p>"
         
         html_section += "</div>"
         return html_section
