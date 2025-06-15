@@ -16,9 +16,33 @@ class HTMLReportGenerator:
         additional_figures=None,
         report_type="full"
     ):
+        """Generate a comprehensive HTML report with all visualizations and insights."""
         if additional_figures is None:
             additional_figures = {}
 
+        # Clean and validate historical_data to avoid Datetime ambiguity
+        try:
+            data_clean = historical_data.copy()
+            if hasattr(data_clean, 'reset_index'):
+                data_clean = data_clean.reset_index()
+            if 'Datetime' in data_clean.columns and data_clean.index.name == 'Datetime':
+                data_clean = data_clean.drop(columns=['Datetime'], errors='ignore')
+            elif 'Date' in data_clean.columns:
+                data_clean = data_clean.rename(columns={'Date': 'Datetime'})
+            if 'Datetime' not in data_clean.columns:
+                data_clean['Datetime'] = pd.date_range(
+                    start='2020-01-01', periods=len(data_clean), freq='D'
+                )
+            data_clean['Datetime'] = pd.to_datetime(data_clean['Datetime'])
+            if 'Adj Close' not in data_clean.columns:
+                data_clean['Adj Close'] = data_clean['Close']
+            for col in ['Dividends', 'Stock Splits']:
+                if col not in data_clean.columns:
+                    data_clean[col] = 0
+        except Exception as e:
+            return f"<html><body><h1>Error</h1><p>Data preprocessing failed: {str(e)}</p></body></html>".encode('utf-8')
+
+        # Initialize HTML content
         html_content = f"""
         <html>
         <head>
@@ -35,6 +59,9 @@ class HTMLReportGenerator:
                 th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
                 th {{ background-color: #f2f2f2; }}
                 .disclaimer {{ font-style: italic; color: #7f8c8d; font-size: 0.9em; }}
+                .signal-buy {{ color: #27ae60; font-weight: bold; }}
+                .signal-sell {{ color: #c0392b; font-weight: bold; }}
+                .signal-hold {{ color: #7f8c8d; font-weight: bold; }}
             </style>
             <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
         </head>
@@ -43,41 +70,54 @@ class HTMLReportGenerator:
             <p style="text-align: center;">Generated on: {dt.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
         """
 
+        # Add Overview Section
         html_content += """
         <div class="section">
             <h2>Overview</h2>
         """
-        if not historical_data.empty:
-            start_date = pd.to_datetime(historical_data.index[0]).strftime('%Y-%m-%d')
-            end_date = pd.to_datetime(historical_data.index[-1]).strftime('%Y-%m-%d')
-            current_price = historical_data['Close'].iloc[-1]
-            total_return = ((current_price / historical_data['Close'].iloc[0]) - 1) * 100
-            volatility = historical_data['Close'].pct_change().std() * np.sqrt(252) * 100
-            html_content += f"""
-            <div class="metric-card">
-                <div class="metric"><strong>Period</strong><br>{start_date} to {end_date}</div>
-                <div class="metric"><strong>Current Price</strong><br>${current_price:.2f}</div>
-                <div class="metric"><strong>Total Return</strong><br>{total_return:.2f}%</div>
-                <div class="metric"><strong>Volatility (Annual)</strong><br>{volatility:.2f}%</div>
-            </div>
-            """
+        try:
+            if not data_clean.empty:
+                start_date = pd.to_datetime(data_clean['Datetime'].iloc[0]).strftime('%Y-%m-%d')
+                end_date = pd.to_datetime(data_clean['Datetime'].iloc[-1]).strftime('%Y-%m-%d')
+                current_price = data_clean['Close'].iloc[-1]
+                total_return = ((current_price / data_clean['Close'].iloc[0]) - 1) * 100
+                volatility = data_clean['Close'].pct_change().std() * np.sqrt(252) * 100
+                html_content += f"""
+                <div class="metric-card">
+                    <div class="metric"><strong>Period</strong><br>{start_date} to {end_date}</div>
+                    <div class="metric"><strong>Current Price</strong><br>${current_price:.2f}</div>
+                    <div class="metric"><strong>Total Return</strong><br>{total_return:.2f}%</div>
+                    <div class="metric"><strong>Volatility (Annual)</strong><br>{volatility:.2f}%</div>
+                </div>
+                """
+            else:
+                html_content += "<p>No historical data available for overview.</p>"
+        except Exception as e:
+            html_content += f"<p>Error generating overview: {str(e)}</p>"
+        html_content += "</div>"
 
+        # Add Visualizations Section
         html_content += """
         <div class="section">
             <h2>Advanced Visualizations</h2>
         """
 
+        # Helper function to add Plotly chart
         def add_chart(fig, title, chart_id):
-            if fig and hasattr(fig, 'data') and fig.data:
-                chart_html = pio.to_html(fig, full_html=False, div_id=chart_id)
-                return f"""
-                <div class="chart-container">
-                    <h3>{title}</h3>
-                    {chart_html}
-                </div>
-                """
-            return ""
+            try:
+                if fig and hasattr(fig, 'data') and fig.data:
+                    chart_html = pio.to_html(fig, full_html=False, div_id=chart_id)
+                    return f"""
+                    <div class="chart-container">
+                        <h3>{title}</h3>
+                        {chart_html}
+                    </div>
+                    """
+                return f"<p>Chart '{title}' not available.</p>"
+            except Exception as e:
+                return f"<p>Error rendering chart '{title}': {str(e)}</p>"
 
+        # Chart mappings
         chart_mappings = [
             ('candlestick', 'Candlestick Chart', 'candlestick-chart'),
             ('price_trends', 'Price Trends', 'price-trends-chart'),
@@ -105,6 +145,9 @@ class HTMLReportGenerator:
             if key in additional_figures:
                 html_content += add_chart(additional_figures[key], title, chart_id)
 
+        html_content += "</div>"
+
+        # Add Technical Indicators Section
         html_content += """
         <div class="section">
             <h2>Technical Indicators</h2>
@@ -112,15 +155,42 @@ class HTMLReportGenerator:
         try:
             signals = tech_indicators.get_trading_signals()
             if signals:
-                html_content += "<h3>Trading Signals</h3><table><tr><th>Indicator</th><th>Signal</th><th>Strength</th></tr>"
+                html_content += "<h3>Trading Signals</h3><table><tr><th>Indicator</th><th>Signal</th><th>Strength</th><th>Explanation</th></tr>"
                 for indicator, signal_data in signals.items():
                     signal = signal_data.get('signal', 'Unknown')
-                    strength = signal_data.get('strength', 'Unknown')
-                    html_content += f"<tr><td>{indicator}</td><td>{signal}</td><td>{strength}</td></tr>"
+                    strength = signal_data.get('strength', 'Moderate (Pending Implementation)')
+                    explanation = ""
+                    if indicator == "RSI":
+                        rsi_val = tech_indicators.calculate_rsi().iloc[-1] if hasattr(tech_indicators, 'calculate_rsi') else 0
+                        if rsi_val > 70:
+                            explanation = "Overbought: RSI above 70 suggests potential price correction."
+                        elif rsi_val < 30:
+                            explanation = "Oversold: RSI below 30 indicates potential buying opportunity."
+                        else:
+                            explanation = f"Neutral: RSI at {rsi_val:.1f} suggests no strong momentum."
+                    elif indicator == "MACD":
+                        explanation = "Tracks momentum via MACD line crossovers. Monitor for signal confirmation."
+                    elif indicator == "Bollinger Bands":
+                        explanation = "Price position relative to bands indicates volatility and potential reversals."
+                    else:
+                        explanation = "No specific explanation available."
+                    signal_class = 'signal-buy' if 'buy' in signal.lower() else 'signal-sell' if 'sell' in signal.lower() else 'signal-hold'
+                    html_content += f"""
+                    <tr>
+                        <td>{indicator}</td>
+                        <td class="{signal_class}">{signal}</td>
+                        <td>{strength}</td>
+                        <td>{explanation}</td>
+                    </tr>
+                    """
                 html_content += "</table>"
+            else:
+                html_content += "<p>No trading signals available.</p>"
         except Exception as e:
             html_content += f"<p>Error generating trading signals: {str(e)}</p>"
+        html_content += "</div>"
 
+        # Add Trading Insights Section
         html_content += """
         <div class="section">
             <h2>Trading Insights</h2>
@@ -128,23 +198,8 @@ class HTMLReportGenerator:
         try:
             trading_signals = tech_indicators.get_trading_signals()
             signal_summary = {"buy": 0, "sell": 0, "hold": 0}
-            signal_details = []
             for indicator, signal_data in trading_signals.items():
-                signal = signal_data.get('signal', 'Unknown').lower()
-                strength = signal_data.get('strength', 'Unknown')
-                details = f"Indicator: {indicator}, Signal: {signal_data.get('signal', 'Unknown')}, Strength: {strength}"
-                if indicator == 'RSI':
-                    rsi = tech_indicators.calculate_rsi().iloc[-1] if len(tech_indicators.calculate_rsi()) > 0 else 0
-                    details += f", Current RSI: {rsi:.1f}"
-                    if rsi > 70:
-                        details += " (Overbought)"
-                    elif rsi < 30:
-                        details += " (Oversold)"
-                elif indicator == 'MACD':
-                    macd = tech_indicators.calculate_macd()
-                    if not macd.empty:
-                        details += f", MACD Diff: {(macd['MACD'] - macd['Signal']).iloc[-1]:.2f}"
-                signal_details.append(details)
+                signal = signal_data.get('signal', '').lower()
                 if 'buy' in signal:
                     signal_summary["buy"] += 1
                 elif 'sell' in signal:
@@ -152,53 +207,181 @@ class HTMLReportGenerator:
                 else:
                     signal_summary["hold"] += 1
             html_content += f"""
+            <h3>Signal Summary</h3>
             <div class="metric-card">
                 <div class="metric"><strong>Buy Signals</strong><br>{signal_summary['buy']}</div>
                 <div class="metric"><strong>Sell Signals</strong><br>{signal_summary['sell']}</div>
                 <div class="metric"><strong>Hold/Neutral</strong><br>{signal_summary['hold']}</div>
             </div>
-            <h3>Signal Details</h3>
-            <ul>
             """
-            for detail in signal_details:
-                html_content += f"<li>{detail}</li>"
-            html_content += "</ul>"
-
+            # Overall Recommendation
+            if signal_summary["buy"] > signal_summary["sell"]:
+                html_content += """
+                <h3>Overall Recommendation</h3>
+                <p class="signal-buy"><strong>Bullish Outlook:</strong> More buy signals than sell signals. Consider accumulating positions or holding existing ones.</p>
+                """
+            elif signal_summary["sell"] > signal_summary["buy"]:
+                html_content += """
+                <h3>Overall Recommendation</h3>
+                <p class="signal-sell"><strong>Bearish Outlook:</strong> More sell signals than buy signals. Consider reducing positions or defensive strategies.</p>
+                """
+            else:
+                html_content += """
+                <h3>Overall Recommendation</h3>
+                <p class="signal-hold"><strong>Neutral Outlook:</strong> Mixed signals. Wait for clearer directional signals.</p>
+                """
+            # Trading Strategies
             strategies = analytics.generate_trading_strategies(trading_signals)
             if strategies:
-                html_content += "<h3>Recommended Strategies</h3>"
+                html_content += "<h3>Recommended Trading Strategies</h3>"
                 for i, strategy in enumerate(strategies):
                     html_content += f"""
                     <div class="chart-container">
                         <h4>Strategy {i+1}: {strategy.get('name', 'Unknown')}</h4>
                         <p><strong>Type:</strong> {strategy.get('type', 'N/A')}</p>
                         <p><strong>Risk Level:</strong> {strategy.get('risk_level', 'N/A')}</p>
+                        <p><strong>Time Horizon:</strong> {strategy.get('time_horizon', 'N/A')}</p>
                         <p><strong>Description:</strong> {strategy.get('description', 'N/A')}</p>
-                    </div>
                     """
+                    if 'entry_conditions' in strategy:
+                        html_content += f"<p><strong>Entry Conditions:</strong> {strategy['entry_conditions']}</p>"
+                    if 'exit_conditions' in strategy:
+                        html_content += f"<p><strong>Exit Conditions:</strong> {strategy['exit_conditions']}</p>"
+                    if 'risk_management' in strategy:
+                        html_content += f"<p><strong>Risk Management:</strong> {strategy['risk_management']}</p>"
+                    html_content += "</div>"
+            else:
+                html_content += "<p>No trading strategies available.</p>"
+            # Risk Metrics
             risk_metrics = analytics.calculate_risk_metrics()
-            html_content += f"""
+            html_content += """
             <h3>Risk Metrics</h3>
             <div class="metric-card">
-                <div class="metric"><strong>Beta</strong><br>{risk_metrics.get('beta', 'N/A')}</div>
-                <div class="metric"><strong>Sharpe Ratio</strong><br>{risk_metrics.get('sharpe_ratio', 'N/A')}</div>
-                <div class="metric"><strong>Max Drawdown</strong><br>{risk_metrics.get('max_drawdown', 'N/A')}%</div>
-                <div class="metric"><strong>VaR (95%)</strong><br>{risk_metrics.get('var_95', 'N/A')}%</div>
-            </div>
             """
+            for metric, value in risk_metrics.items():
+                value_str = f"{value:.2f}" if isinstance(value, (int, float)) else str(value)
+                metric_name = metric.replace('_', ' ').title()
+                html_content += f"""
+                <div class="metric"><strong>{metric_name}</strong><br>{value_str}</div>
+                """
+            html_content += "</div>"
+            # Pattern Analysis
             patterns = analytics.analyze_patterns()
-            html_content += "<h3>Pattern Analysis</h3>"
-            html_content += f"""
-            <p><strong>Seasonal Patterns:</strong> {', '.join(patterns.get('seasonal_patterns', ['None']))}</p>
-            <p><strong>Volume Patterns:</strong> {', '.join(patterns.get('volume_patterns', ['None']))}</p>
+            html_content += """
+            <h3>Market Patterns Analysis</h3>
+            <div class="metric-card">
+                <div class="metric">
+                    <strong>Seasonal Patterns</strong><br>
             """
+            if patterns.get('seasonal_patterns'):
+                for pattern in patterns['seasonal_patterns']:
+                    html_content += f"{pattern}<br>"
+            else:
+                html_content += "No significant seasonal patterns detected."
+            html_content += """
+                </div>
+                <div class="metric">
+                    <strong>Volume Patterns</strong><br>
+            """
+            if patterns.get('volume_patterns'):
+                for pattern in patterns['volume_patterns']:
+                    html_content += f"{pattern}<br>"
+            else:
+                html_content += "No significant volume patterns detected."
+            html_content += "</div></div>"
         except Exception as e:
             html_content += f"<p>Error generating trading insights: {str(e)}</p>"
+        html_content += "</div>"
 
+        # Add Predictions Section
+        html_content += """
+        <div class="section">
+            <h2>Price Predictions</h2>
+        """
+        try:
+            if len(data_clean) > 50:
+                pred_days = 7  # Default prediction period
+                pred_prices = predictions.predict_prices(pred_days, method="technical_analysis")
+                if pred_prices:
+                    current_price = data_clean['Close'].iloc[-1]
+                    predicted_final = pred_prices[-1]
+                    change_pct = ((predicted_final - current_price) / current_price) * 100
+                    confidence = predictions.calculate_prediction_confidence()
+                    html_content += f"""
+                    <div class="metric-card">
+                        <div class="metric"><strong>Predicted Change</strong><br>{change_pct:.2f}%</div>
+                        <div class="metric"><strong>Target Price</strong><br>${predicted_final:.2f}</div>
+                        <div class="metric"><strong>Confidence Score</strong><br>{confidence.get('score', 0):.1f}/10</div>
+                        <div class="metric"><strong>Prediction Volatility</strong><br>{confidence.get('volatility', 0):.2f}%</div>
+                    </div>
+                    <p><strong>Disclaimer:</strong> {predictions.get_prediction_disclaimer()}</p>
+                    """
+                else:
+                    html_content += "<p>Unable to generate predictions.</p>"
+            else:
+                html_content += "<p>Insufficient data for predictions (minimum 50 data points).</p>"
+        except Exception as e:
+            html_content += f"<p>Error generating predictions: {str(e)}</p>"
+        html_content += "</div>"
+
+        # Add Comparative Analysis Section
+        if advanced_analytics is not None:
+            html_content += """
+            <div class="section">
+                <h2>Comparative Analysis</h2>
+            """
+            try:
+                summary = advanced_analytics.get_performance_summary()
+                if summary:
+                    html_content += f"""
+                    <div class="metric-card">
+                        <div class="metric"><strong>Total Stocks</strong><br>{summary.get('total_stocks', 0)}</div>
+                        <div class="metric"><strong>Average Change</strong><br>{summary.get('avg_change', 0):.2f}%</div>
+                        <div class="metric"><strong>Gainers</strong><br>{summary.get('gainers', 0)}</div>
+                        <div class="metric"><strong>Losers</strong><br>{summary.get('losers', 0)}</div>
+                    </div>
+                    """
+                sector_analysis = advanced_analytics.get_sector_analysis()
+                if not sector_analysis.empty:
+                    html_content += """
+                    <h3>Sector Performance</h3>
+                    """
+                    html_content += sector_analysis.to_html(index=False, border=1, classes="table")
+            except Exception as e:
+                html_content += f"<p>Error generating comparative analysis: {str(e)}</p>"
+            html_content += "</div>"
+
+        # Add Data Summary Section
+        html_content += """
+        <div class="section">
+            <h2>Data Summary</h2>
+        """
+        try:
+            if not data_clean.empty:
+                summary_stats = data_clean['Close'].describe()
+                html_content += """
+                <h3>Price Statistics</h3>
+                <table>
+                    <tr><th>Metric</th><th>Value</th></tr>
+                """
+                for stat, value in summary_stats.items():
+                    html_content += f"<tr><td>{stat.capitalize()}</td><td>{value:.2f}</td></tr>"
+                html_content += "</table>"
+            else:
+                html_content += "<p>No data available for summary.</p>"
+        except Exception as e:
+            html_content += f"<p>Error generating data summary: {str(e)}</p>"
+        html_content += "</div>"
+
+        # Add Disclaimer
         html_content += """
         <div class="section disclaimer">
-            <p><strong>Disclaimer:</strong> This report is for informational purposes only.</p>
+            <p><strong>Disclaimer:</strong> This report is for informational purposes only and does not constitute financial advice. Always conduct your own research before making investment decisions.</p>
         </div>
+        """
+
+        # Close HTML
+        html_content += """
         </body>
         </html>
         """
