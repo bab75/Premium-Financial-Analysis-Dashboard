@@ -1152,7 +1152,7 @@ def advanced_analytics_section():
 
     # Use yfinance data if available, otherwise historical data
     data_source = st.session_state.yfinance_data if st.session_state.yfinance_data is not None else st.session_state.historical_data
-
+  
     if data_source is None or data_source.empty:
         st.error("No historical data available for analysis.")
         return
@@ -1160,8 +1160,9 @@ def advanced_analytics_section():
     # Prepare data
     data_clean = data_source.copy()
     if hasattr(data_clean, 'reset_index'):
-        data_clean = data_clean.reset_index()
+        data_clean = data_clean.reset_index(drop=True)
 
+    
     # Handle missing Adj Close
     if 'Adj Close' not in data_clean.columns:
         data_clean['Adj Close'] = data_clean['Close']
