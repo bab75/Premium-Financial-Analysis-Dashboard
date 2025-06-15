@@ -1636,74 +1636,200 @@ def advanced_analytics_section():
         else:
             st.warning("Insufficient data for comprehensive trading insights")
     
-    # HTML Report Download Section
-    if len(data_clean) > 0:
-        st.markdown("---")
-        st.subheader("📄 Download Comprehensive Report")
-        
-        # Enhanced report card container
-        st.markdown("""
-        <div class="report-card">
-            <h3>📊 Generate Interactive Report</h3>
-            <p>Create a professional HTML report with all your analysis, including interactive charts and detailed insights.</p>
-        """, unsafe_allow_html=True)
-
-        # Button container
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button("🔽 Generate HTML Report", type="primary", use_container_width=True):
-                try:
-                    from utils.html_report_generator import HTMLReportGenerator
-                    
-                    # Get current stock symbol
-                    stock_symbol = st.session_state.selected_stock_symbol or "STOCK"
-                    
-                    # Prepare clean data for components
-                    clean_data_for_components = data_clean.copy()
-                    if 'Datetime' in clean_data_for_components.columns and isinstance(clean_data_for_components.index, pd.DatetimeIndex):
-                        clean_data_for_components = clean_data_for_components.drop(columns=['Datetime'])
-                    elif 'Datetime' in clean_data_for_components.columns:
-                        clean_data_for_components = clean_data_for_components.set_index('Datetime')
-                    
-                    # Initialize components
-                    tech_indicators = TechnicalIndicators(clean_data_for_components)
-                    analytics = Analytics(historical_data=data_clean)
-                    viz = Visualizations(historical_data=clean_data_for_components)
-                    
-                    # Initialize advanced analytics
-                    advanced_analytics = None
-                    if st.session_state.current_data is not None and st.session_state.previous_data is not None:
-                        advanced_analytics = EnhancedComparativeAnalysis(st.session_state.current_data, st.session_state.previous_data)
-                    
-                    # Use prediction data if available
-                    prediction_data = st.session_state.prediction_results if 'prediction_results' in st.session_state else None
-                    prediction_days = st.session_state.prediction_days if 'prediction_days' in st.session_state else None
-                    
-                    # Generate report
-                    report_generator = HTMLReportGenerator()
-                    html_content = report_generator.generate_comprehensive_report(
-                        stock_symbol=stock_symbol,
-                        historical_data=clean_data_for_components,
-                        tech_indicators=tech_indicators,
-                        analytics=analytics,
-                        visualizations=viz,
-                        prediction_data=prediction_data,
-                        prediction_days=prediction_days,
-                        advanced_analytics=advanced_analytics,
-                        report_type="full"
-                    )
-                    
-                    # Provide download
-                    st.download_button(
-                        label="📥 Download HTML Report",
-                        data=html_content,
-                        file_name=f"financial_analysis_report_{stock_symbol}_{dt.now().strftime('%Y%m%d_%H%M%S')}.html",
-                        mime="text/html",
-                        use_container_width=True,
-                        key="download_report"
-                    )
-                    
-                    st.success("✅ Report generated successfully! Click 'Download HTML Report' to save.")
+            # HTML Report Download Section
+            if len(data_clean) > 0:
+                st.markdown("---")
+                st.subheader("📄 Download Comprehensive Report")
                 
-                except Exception as e:
-                    st.error(f"Error generating report: {
+                # Enhanced report card container
+                st.markdown("""
+                <div class="report-card">
+                    <h3>📊 Generate Interactive Report</h3>
+                    <p>Create a professional HTML report with all your analysis, including interactive charts and detailed insights.</p>
+                """, unsafe_allow_html=True)
+        
+                # Button container
+                col1, col2, col3 = st.columns([1, 2, 1])
+                with col2:
+                    if st.button("🔽 Generate HTML Report", type="primary", use_container_width=True):
+                        try:
+                            from utils.html_report_generator import HTMLReportGenerator
+                            
+                            # Get current stock symbol
+                            stock_symbol = st.session_state.selected_stock_symbol or "STOCK"
+                            
+                            # Prepare clean data for components
+                            clean_data_for_components = data_clean.copy()
+                            if 'Datetime' in clean_data_for_components.columns and isinstance(clean_data_for_components.index, pd.DatetimeIndex):
+                                clean_data_for_components = clean_data_for_components.drop(columns=['Datetime'])
+                            elif 'Datetime' in clean_data_for_components.columns:
+                                clean_data_for_components = clean_data_for_components.set_index('Datetime')
+                            
+                            # Initialize components
+                            tech_indicators = TechnicalIndicators(clean_data_for_components)
+                            analytics = Analytics(historical_data=data_clean)
+                            viz = Visualizations(historical_data=clean_data_for_components)
+                            
+                            # Initialize advanced analytics
+                            advanced_analytics = None
+                            if st.session_state.current_data is not None and st.session_state.previous_data is not None:
+                                advanced_analytics = EnhancedComparativeAnalysis(st.session_state.current_data, st.session_state.previous_data)
+                            
+                            # Use prediction data if available
+                            prediction_data = st.session_state.prediction_results if 'prediction_results' in st.session_state else None
+                            prediction_days = st.session_state.prediction_days if 'prediction_days' in st.session_state else None
+                            
+                            # Generate report
+                            report_generator = HTMLReportGenerator()
+                            html_content = report_generator.generate_comprehensive_report(
+                                stock_symbol=stock_symbol,
+                                historical_data=clean_data_for_components,
+                                tech_indicators=tech_indicators,
+                                analytics=analytics,
+                                visualizations=viz,
+                                prediction_data=prediction_data,
+                                prediction_days=prediction_days,
+                                advanced_analytics=advanced_analytics,
+                                report_type="full"
+                            )
+                            
+                             # HTML Report Download Section
+            if len(data_clean) > 0:
+                st.markdown("---")
+                st.subheader("📄 Download Comprehensive Report")
+                st.info("Generate an interactive HTML report with all charts and hover functionality preserved")
+                
+                col1, col2, col3 = st.columns([1, 1, 2])
+                
+                with col2:
+                    if st.button("🔽 Generate HTML Report", type="primary"):
+                        try:
+                            from utils.html_report_generator import HTMLReportGenerator
+                            
+                            # Get current stock symbol
+                            stock_symbol = st.session_state.selected_stock_symbol or "STOCK"
+                            
+                            # Prepare clean data for components (avoid ambiguity errors)
+                            clean_data_for_components = data_clean.copy()
+                            if 'Datetime' in clean_data_for_components.columns and isinstance(clean_data_for_components.index, pd.DatetimeIndex):
+                                # Remove datetime column if index is already datetime
+                                clean_data_for_components = clean_data_for_components.drop(columns=['Datetime'])
+                            elif 'Datetime' in clean_data_for_components.columns:
+                                # Set as index if not already datetime index
+                                clean_data_for_components = clean_data_for_components.set_index('Datetime')
+                            
+                            # Initialize components
+                            tech_indicators = TechnicalIndicators(clean_data_for_components)
+                            analytics = Analytics(historical_data=data_clean)
+                            viz = Visualizations(historical_data=clean_data_for_components)
+                            
+                            # Initialize advanced analytics for comprehensive reporting
+                            from utils.enhanced_comparative_analysis import EnhancedComparativeAnalysis
+                            advanced_analytics = None
+                            if st.session_state.current_data is not None and st.session_state.previous_data is not None:
+                                advanced_analytics = EnhancedComparativeAnalysis(st.session_state.current_data, st.session_state.previous_data)
+                            
+                            # Generate comprehensive report with all features
+                            report_generator = HTMLReportGenerator()
+                            html_content = report_generator.generate_comprehensive_report(
+                                stock_symbol=stock_symbol,
+                                historical_data=clean_data_for_components,
+                                tech_indicators=tech_indicators,
+                                analytics=analytics,
+                                visualizations=viz,
+                                predictions=clean_data_for_components,  # Pass historical data for predictions
+                                advanced_analytics=advanced_analytics,
+                                report_type="full"
+                            )
+                            
+                            # Provide download
+                            st.download_button(
+                                label="📥 Download HTML Report",
+                                data=html_content,
+                                file_name=f"financial_analysis_report_{stock_symbol}_{dt.now().strftime('%Y%m%d_%H%M%S')}.html",
+                                help="Download interactive HTML report with hover functionality"
+                            )
+                            
+                            st.success("✅ Report generated successfully! Click 'Download HTML Report' to save the file.")
+                            
+                        except Exception as e:
+                            st.error(f"Error generating report: {str(e)}")
+                            st.info("Please ensure all required data is available and try again.")
+                
+                st.markdown("**Enhanced Report Features:**")
+                st.markdown("• Interactive charts with MM-DD-YYYY date hover text")
+                st.markdown("• Technical indicators analysis")
+                st.markdown("• Trading signals and recommendations") 
+                st.markdown("• Performance metrics and risk analysis")
+                st.markdown("• 3D visualization charts (price-volume-time analysis)")
+                st.markdown("• Machine learning predictions and forecasts")
+                st.markdown("• Advanced analytics (sector analysis, correlations)")
+                st.markdown("• Comprehensive performance dashboards")
+        
+        def main():
+            # Custom CSS for beautiful UI
+            st.markdown("""
+            <style>
+            .main > div {
+                padding-top: 2rem;
+            }
+            .stTabs [data-baseweb="tab-list"] {
+                gap: 2px;
+            }
+            .stTabs [data-baseweb="tab"] {
+                height: 60px;
+                padding: 10px 20px;
+                background-color: #f0f2f6;
+                border-radius: 10px 10px 0px 0px;
+            }
+            .stTabs [aria-selected="true"] {
+                background-color: #ffffff;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .metric-card {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 1rem;
+                border-radius: 10px;
+                color: white;
+                margin: 0.5rem 0;
+            }
+            .success-card {
+                background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+                padding: 1rem;
+                border-radius: 10px;
+                color: white;
+            }
+            .warning-card {
+                background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+                padding: 1rem;
+                border-radius: 10px;
+                color: white;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+        
+            st.title("📈 Premium Financial Analysis Dashboard")
+            st.markdown("### Comprehensive Stock Trading Analysis with Advanced Technical Indicators & Predictions")
+        
+            # Create enhanced tabs
+            tab1, tab2, tab3, tab4 = st.tabs([
+                "📁 Data Upload", 
+                "📊 Phase 1: Comparative Analysis", 
+                "📈 Phase 2: Deep Stock Analysis",
+                "🔮 Advanced Analytics"
+            ])
+        
+            with tab1:
+                data_upload_section()
+        
+            with tab2:
+                phase1_comparative_analysis_section()
+        
+            with tab3:
+                phase2_deep_analysis_section()
+        
+            with tab4:
+                advanced_analytics_section()
+        
+        if __name__ == "__main__":
+            main()
