@@ -1,3 +1,4 @@
+```python
 """
 HTML Report Generator for Financial Analysis
 Creates comprehensive downloadable HTML reports with interactive charts
@@ -72,7 +73,18 @@ class HTMLReportGenerator:
     
     def __init__(self):
         self.css_styles = """
-        
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; }
+                h1 { color: #333; text-align: center; }
+                h2, h3 { color: #444; }
+                table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                th { background-color: #f2f2f2; }
+                .signal-buy { color: green; }
+                .signal-sell { color: red; }
+                .signal-hold { color: orange; }
+                .summary-table { width: 100%; }
+            </style>
         """
     
     def generate_comprehensive_report(self, 
@@ -93,24 +105,10 @@ class HTMLReportGenerator:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         # Start building HTML
-        html_content = f"""
-        
-        
-            {self.css_styles}
-        
-        
-        """
+        html_content = "<html><head><title>Financial Analysis Report - " + stock_symbol + "</title>" + self.css_styles + "</head><body>"
         
         # Header
-        html_content += f"""
-        
-            Financial Analysis Report
-
-            Stock Symbol: {stock_symbol} | Generated: {timestamp}
-
-        
-
-        """
+        html_content += "<h1>Financial Analysis Report</h1><p><strong>Stock Symbol:</strong> " + stock_symbol + " | <strong>Generated:</strong> " + timestamp + "</p>"
         
         # Executive Summary
         html_content += self._generate_executive_summary(stock_symbol, historical_data, tech_indicators)
@@ -143,16 +141,7 @@ class HTMLReportGenerator:
             html_content += self._generate_advanced_analytics_section(advanced_analytics)
         
         # Footer
-        html_content += f"""
-        
-            This report was generated automatically by the Financial Analysis Application
-
-            Data analysis period: {str(historical_data.index[0])[:10]} to {str(historical_data.index[-1])[:10]}
-
-        
-
-        
-        """
+        html_content += "<footer><p>This report was generated automatically by the Financial Analysis Application</p><p><strong>Data analysis period:</strong> " + str(historical_data.index[0])[:10] + " to " + str(historical_data.index[-1])[:10] + "</p></footer></body></html>"
         
         return html_content
     
@@ -167,124 +156,45 @@ class HTMLReportGenerator:
         low_52week = data['Low'].min()
         avg_volume = data['Volume'].mean()
         
-        return f"""
+        html_section = "<h2>📊 Executive Summary</h2><table>"
+        html_section += "<tr><td>Current Price</td><td>$" + str(round(current_price, 2)) + "</td></tr>"
+        html_section += "<tr><td>Daily Change</td><td>" + f"{price_change:+.2f} ({price_change_pct:+.2f}%)" + "</td></tr>"
+        html_section += "<tr><td>52-Week High</td><td>$" + str(round(high_52week, 2)) + "</td></tr>"
+        html_section += "<tr><td>52-Week Low</td><td>$" + str(round(low_52week, 2)) + "</td></tr>"
+        html_section += "<tr><td>Average Volume</td><td>" + f"{avg_volume:,.0f}" + "</td></tr>"
+        html_section += "</table>"
         
-            📊 Executive Summary
-
-            
-                
-                    ${current_price:.2f}
-
-                    Current Price
-
-                
-
-                
-                    
-                        {price_change:+.2f} ({price_change_pct:+.2f}%)
-                    
-
-                    Daily Change
-
-                
-
-                
-                    ${high_52week:.2f}
-
-                    52-Week High
-
-                
-
-                
-                    ${low_52week:.2f}
-
-                    52-Week Low
-
-                
-
-                
-                    {avg_volume:,.0f}
-
-                    Avg Volume
-
-                
-
-            
-
-        
-
-        """
+        return html_section
     
     def _generate_technical_charts_section(self, tech_indicators) -> str:
         """Generate technical analysis charts section."""
-        html_section = """
-        
-            📈 Technical Analysis Charts
-
-            Interactive charts showing technical indicators with MM-DD-YYYY date formatting on hover.
-
-        """
+        html_section = "<h2>📈 Technical Analysis Charts</h2><p>Interactive charts showing technical indicators with MM-DD-YYYY date formatting on hover.</p>"
         
         try:
             # Moving Averages Chart
             ma_chart = tech_indicators.create_moving_averages_chart()
-            html_section += f"""
-            
-                Moving Averages
-
-                {ma_chart.to_html(include_plotlyjs='inline', div_id='ma-chart')}
-            
-
-            """
+            html_section += "<h3>Moving Averages</h3>" + ma_chart.to_html(include_plotlyjs='inline', div_id='ma-chart')
             
             # RSI Chart
             rsi_chart = tech_indicators.create_rsi_chart()
-            html_section += f"""
-            
-                Relative Strength Index (RSI)
-
-                {rsi_chart.to_html(include_plotlyjs=False, div_id='rsi-chart')}
-            
-
-            """
+            html_section += "<h3>Relative Strength Index (RSI)</h3>" + rsi_chart.to_html(include_plotlyjs=False, div_id='rsi-chart')
             
             # MACD Chart
             macd_chart = tech_indicators.create_macd_chart()
-            html_section += f"""
-            
-                MACD Analysis
-
-                {macd_chart.to_html(include_plotlyjs=False, div_id='macd-chart')}
-            
-
-            """
+            html_section += "<h3>MACD Analysis</h3>" + macd_chart.to_html(include_plotlyjs=False, div_id='macd-chart')
             
             # Bollinger Bands Chart
             bb_chart = tech_indicators.create_bollinger_bands_chart()
-            html_section += f"""
-            
-                Bollinger Bands
-
-                {bb_chart.to_html(include_plotlyjs=False, div_id='bb-chart')}
-            
-
-            """
+            html_section += "<h3>Bollinger Bands</h3>" + bb_chart.to_html(include_plotlyjs=False, div_id='bb-chart')
             
         except Exception as e:
-            html_section += f"Error generating technical charts: {str(e)}
-"
+            html_section += "<p>Error generating technical charts: " + str(e) + "</p>"
         
-        html_section += "
-"
         return html_section
     
     def _generate_trading_signals_section(self, tech_indicators) -> str:
         """Generate trading signals analysis section."""
-        html_section = """
-        
-            🎯 Trading Signals & Recommendations
-
-        """
+        html_section = "<h2>🎯 Trading Signals & Recommendations</h2>"
         
         try:
             signals = tech_indicators.get_trading_signals()
@@ -299,86 +209,40 @@ class HTMLReportGenerator:
                 elif 'sell' in signal_type:
                     signal_class = 'signal-sell'
                 
-                html_section += f"""
-                
-                    {indicator}
-
-                    Signal: {signal_data.get('signal', 'Unknown')}
-
-                    Strength: {strength}
-
-                
-
-                """
+                html_section += "<div><h3>" + indicator + "</h3>"
+                html_section += "<p>Signal: <span class='" + signal_class + "'>" + signal_data.get('signal', 'Unknown') + "</span></p>"
+                html_section += "<p>Strength: " + strength + "</p></div>"
                 
         except Exception as e:
-            html_section += f"Error generating trading signals: {str(e)}
-"
+            html_section += "<p>Error generating trading signals: " + str(e) + "</p>"
         
-        html_section += "
-"
         return html_section
     
     def _generate_price_charts_section(self, visualizations) -> str:
         """Generate price visualization charts section."""
-        html_section = """
-        
-            💹 Price Analysis Charts
-
-        """
+        html_section = "<h2>💹 Price Analysis Charts</h2>"
         
         try:
             # Candlestick Chart
             candlestick_chart = visualizations.create_candlestick_chart()
-            html_section += f"""
-            
-                Candlestick Chart
-
-                {candlestick_chart.to_html(include_plotlyjs=False, div_id='candlestick-chart')}
-            
-
-            """
+            html_section += "<h3>Candlestick Chart</h3>" + candlestick_chart.to_html(include_plotlyjs=False, div_id='candlestick-chart')
             
             # Price Trends Chart
             trends_chart = visualizations.create_price_trends_chart()
-            html_section += f"""
-            
-                Price Trends
-
-                {trends_chart.to_html(include_plotlyjs=False, div_id='trends-chart')}
-            
-
-            """
+            html_section += "<h3>Price Trends</h3>" + trends_chart.to_html(include_plotlyjs=False, div_id='trends-chart')
             
             # Volume Analysis Chart
             volume_chart = visualizations.create_volume_chart()
-            html_section += f"""
-            
-                Volume Analysis
-
-                {volume_chart.to_html(include_plotlyjs=False, div_id='volume-chart')}
-            
-
-            """
+            html_section += "<h3>Volume Analysis</h3>" + volume_chart.to_html(include_plotlyjs=False, div_id='volume-chart')
             
         except Exception as e:
-            html_section += f"Error generating price charts: {str(e)}
-"
+            html_section += "<p>Error generating price charts: " + str(e) + "</p>"
         
-        html_section += "
-"
         return html_section
     
     def _generate_performance_metrics(self, data: pd.DataFrame) -> str:
         """Generate performance metrics table."""
-        html_section = """
-        
-            📊 Performance Metrics
-
-            	Metric	Value	Description
-
-
-        """
+        html_section = "<h2>📊 Performance Metrics</h2><table><tr><th>Metric</th><th>Value</th><th>Description</th></tr>"
         
         try:
             # Calculate metrics
@@ -398,32 +262,17 @@ class HTMLReportGenerator:
             ]
             
             for metric, value, description in metrics:
-                html_section += f"""
-                	{metric}	{value}	{description}
-
-
-                """
+                html_section += "<tr><td>" + metric + "</td><td>" + value + "</td><td>" + description + "</td></tr>"
                 
         except Exception as e:
-            html_section += f"	Error calculating metrics: {str(e)}
-
-"
+            html_section += "<tr><td colspan='3'>Error calculating metrics: " + str(e) + "</td></tr>"
         
-        html_section += """
-                
-            
-        
-
-        """
+        html_section += "</table>"
         return html_section
     
     def _generate_risk_analysis(self, analytics, data: pd.DataFrame) -> str:
         """Generate risk analysis section."""
-        html_section = """
-        
-            ⚠️ Risk Analysis
-
-        """
+        html_section = "<h2>⚠️ Risk Analysis</h2>"
         
         try:
             # Calculate risk metrics
@@ -431,53 +280,27 @@ class HTMLReportGenerator:
             volatility = returns.std() * (252 ** 0.5) * 100
             max_drawdown = ((data['Close'] / data['Close'].expanding().max()) - 1).min() * 100
             
-            html_section += f"""
-            
-                
-                    {volatility:.2f}%
-
-                    Annualized Volatility
-
-                
-
-                
-                    {max_drawdown:.2f}%
-
-                    Maximum Drawdown
-
-                
-
-            
-
-            
-            Risk Assessment
-
-            
-            """
+            html_section += "<table><tr><td>Annualized Volatility</td><td>" + f"{volatility:.2f}%" + "</td></tr>"
+            html_section += "<tr><td>Maximum Drawdown</td><td>" + f"{max_drawdown:.2f}%" + "</td></tr></table>"
+            html_section += "<h3>Risk Assessment</h3>"
             
             if volatility > 30:
-                html_section += "🔴 High Risk: This stock shows high volatility. Suitable for experienced traders with high risk tolerance."
+                html_section += "<p>🔴 High Risk: This stock shows high volatility. Suitable for experienced traders with high risk tolerance.</p>"
             elif volatility > 20:
-                html_section += "🟡 Medium Risk: Moderate volatility. Suitable for balanced investment strategies."
+                html_section += "<p>🟡 Medium Risk: Moderate volatility. Suitable for balanced investment strategies.</p>"
             else:
-                html_section += "🟢 Low Risk: Relatively stable price movements. Suitable for conservative investors."
-            
-            html_section += "
-"
+                html_section += "<p>🟢 Low Risk: Relatively stable price movements. Suitable for conservative investors.</p>"
             
         except Exception as e:
-            html_section += f"Error calculating risk metrics: {str(e)}
-"
+            html_section += "<p>Error calculating risk metrics: " + str(e) + "</p>"
         
-        html_section += "
-"
         return html_section
     
     def save_report_to_file(self, html_content: str, filename: Optional[str] = None) -> str:
         """Save HTML report to file and return the filename."""
         if filename is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"financial_analysis_report_{timestamp}.html"
+            filename = "financial_analysis_report_" + timestamp + ".html"
         
         with open(filename, 'w', encoding='utf-8') as f:
             f.write(html_content)
@@ -485,137 +308,119 @@ class HTMLReportGenerator:
         return filename
     
     def _generate_prediction_charts_section(self, historical_data) -> str:
-    """Generate prediction charts section for HTML report using actual PricePredictions class."""
-    html_section = ""
-    
-    html_section += """
-        <h2>📈 Price Predictions</h2>
-        <p>Technical analysis, linear trend, and moving average predictions for future price movements.</p>
-    """
-    
-    try:
-        from utils.predictions import PricePredictions
+        """Generate prediction charts section for HTML report using actual PricePredictions class."""
+        html_section = "<h2>📈 Price Predictions</h2><p>Technical analysis, linear trend, and moving average predictions for future price movements.</p>"
         
-        # Initialize predictions with historical data
-        predictions = PricePredictions(historical_data)
-        
-        # Generate predictions for 7 days using all three methods
-        prediction_days = 7
-        methods = [
-            ("technical_analysis", "Technical Analysis Prediction", "Advanced technical indicators and momentum analysis"),
-            ("linear_trend", "Linear Trend Prediction", "Statistical trend analysis and regression modeling"),
-            ("moving_average", "Moving Average Prediction", "Simple and exponential moving average forecasting")
-        ]
-        
-        for method_key, method_name, method_desc in methods:
-            try:
-                pred_data = predictions.predict_prices(prediction_days, method_key)
-                
-                if pred_data and len(pred_data) > 0:
-                    # Create prediction chart
-                    import plotly.graph_objects as go
-                    from plotly.subplots import make_subplots
-                    
-                    # Get recent historical prices for context
-                    recent_data = historical_data.tail(20)
-                    historical_dates = recent_data.index if hasattr(recent_data, 'index') else range(len(recent_data))
-                    historical_prices = recent_data['Close'].values
-                    
-                    # Generate future dates
-                    import pandas as pd
-                    if isinstance(historical_dates, pd.DatetimeIndex) and len(historical_dates) > 0:
-                        last_date = historical_dates[-1]
-                    else:
-                        last_date = pd.Timestamp.now()
-                    future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=prediction_days, freq='D')
-                    
-                    # Create chart
-                    fig = go.Figure()
-                    
-                    # Historical prices
-                    fig.add_trace(go.Scatter(
-                        x=historical_dates,
-                        y=historical_prices,
-                        mode='lines',
-                        name='Historical Prices',
-                        line=dict(color='blue', width=2)
-                    ))
-                    
-                    # Predicted prices
-                    fig.add_trace(go.Scatter(
-                        x=future_dates,
-                        y=pred_data,
-                        mode='lines+markers',
-                        name=method_name,
-                        line=dict(color='red', width=2, dash='dash'),
-                        marker=dict(size=6)
-                    ))
-                    
-                    # Update layout
-                    fig.update_layout(
-                        title=f"{method_name} - {prediction_days} Day Forecast",
-                        xaxis_title='Date',
-                        yaxis_title='Price ($)',
-                        hovermode='x unified',
-                        showlegend=True,
-                        height=400
-                    )
-                    
-                    chart_html = fig.to_html(include_plotlyjs=False, div_id=f"prediction_{method_key}")
-                    
-                    html_section += f"<h3>{method_name}</h3>"
-                    html_section += f"<p>{method_desc}</p>"
-                    html_section += chart_html
-                    
-            except Exception as method_error:
-                html_section += f"<p>Error generating {method_name}: {str(method_error)}</p>"
-        
-        # Add prediction metrics and disclaimer
         try:
-            confidence_data = predictions.calculate_prediction_confidence()
-            disclaimer = predictions.get_prediction_disclaimer()
+            from utils.predictions import PricePredictions
             
-            # Format metrics with type checking
-            metrics = [
-                ("Confidence Level", confidence_data.get('confidence_level', 'N/A'), "%"),
-                ("Trend Strength", confidence_data.get('trend_strength', 'N/A'), ""),
-                ("Data Quality", confidence_data.get('data_quality', 'N/A'), ""),
-                ("Volatility Risk", confidence_data.get('volatility_risk', 0), "%")
+            # Initialize predictions with historical data
+            predictions = PricePredictions(historical_data)
+            
+            # Generate predictions for 7 days using all three methods
+            prediction_days = 7
+            methods = [
+                ("technical_analysis", "Technical Analysis Prediction", "Advanced technical indicators and momentum analysis"),
+                ("linear_trend", "Linear Trend Prediction", "Statistical trend analysis and regression modeling"),
+                ("moving_average", "Moving Average Prediction", "Simple and exponential moving average forecasting")
             ]
             
-            html_section += """
-                <h3>Prediction Metrics & Reliability</h3>
-                <table>
-                    <tr>
-                        <th>Metric</th>
-                        <th>Value</th>
-                    </tr>
-            """
+            for method_key, method_name, method_desc in methods:
+                try:
+                    pred_data = predictions.predict_prices(prediction_days, method_key)
+                    
+                    if pred_data and len(pred_data) > 0:
+                        # Create prediction chart
+                        import plotly.graph_objects as go
+                        from plotly.subplots import make_subplots
+                        
+                        # Get recent historical prices for context
+                        recent_data = historical_data.tail(20)
+                        historical_dates = recent_data.index if hasattr(recent_data, 'index') else range(len(recent_data))
+                        historical_prices = recent_data['Close'].values
+                        
+                        # Generate future dates
+                        import pandas as pd
+                        if isinstance(historical_dates, pd.DatetimeIndex) and len(historical_dates) > 0:
+                            last_date = historical_dates[-1]
+                        else:
+                            last_date = pd.Timestamp.now()
+                        future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=prediction_days, freq='D')
+                        
+                        # Create chart
+                        fig = go.Figure()
+                        
+                        # Historical prices
+                        fig.add_trace(go.Scatter(
+                            x=historical_dates,
+                            y=historical_prices,
+                            mode='lines',
+                            name='Historical Prices',
+                            line=dict(color='blue', width=2)
+                        ))
+                        
+                        # Predicted prices
+                        fig.add_trace(go.Scatter(
+                            x=future_dates,
+                            y=pred_data,
+                            mode='lines+markers',
+                            name=method_name,
+                            line=dict(color='red', width=2, dash='dash'),
+                            marker=dict(size=6)
+                        ))
+                        
+                        # Update layout
+                        fig.update_layout(
+                            title=method_name + " - " + str(prediction_days) + " Day Forecast",
+                            xaxis_title='Date',
+                            yaxis_title='Price ($)',
+                            hovermode='x unified',
+                            showlegend=True,
+                            height=400
+                        )
+                        
+                        chart_html = fig.to_html(include_plotlyjs=False, div_id="prediction_" + method_key)
+                        
+                        html_section += "<h3>" + method_name + "</h3>"
+                        html_section += "<p>" + method_desc + "</p>"
+                        html_section += chart_html
+                        
+                except Exception as method_error:
+                    html_section += "<p>Error generating " + method_name + ": " + str(method_error) + "</p>"
             
-            for metric, value, suffix in metrics:
-                formatted_value = f"{value:.1f}{suffix}" if isinstance(value, (int, float)) else str(value)
-                html_section += f"<tr><td>{metric}</td><td>{formatted_value}</td></tr>"
+            # Add prediction metrics and disclaimer
+            try:
+                confidence_data = predictions.calculate_prediction_confidence()
+                disclaimer = predictions.get_prediction_disclaimer()
+                
+                # Format metrics with type checking
+                metrics = [
+                    ("Confidence Level", confidence_data.get('confidence_level', 'N/A'), "%"),
+                    ("Trend Strength", confidence_data.get('trend_strength', 'N/A'), ""),
+                    ("Data Quality", confidence_data.get('data_quality', 'N/A'), ""),
+                    ("Volatility Risk", confidence_data.get('volatility_risk', 0), "%")
+                ]
+                
+                html_section += "<h3>Prediction Metrics & Reliability</h3><table><tr><th>Metric</th><th>Value</th></tr>"
+                
+                for metric, value, suffix in metrics:
+                    formatted_value = f"{value:.1f}{suffix}" if isinstance(value, (int, float)) else str(value)
+                    html_section += "<tr><td>" + metric + "</td><td>" + formatted_value + "</td></tr>"
+                
+                html_section += "</table>"
+                html_section += "<p><em>" + disclaimer + "</em></p>"
+                
+            except Exception as metrics_error:
+                html_section += "<p>Error generating prediction metrics: " + str(metrics_error) + "</p>"
             
-            html_section += "</table>"
-            html_section += f"<p><em>{disclaimer}</em></p>"
-            
-        except Exception as metrics_error:
-            html_section += f"<p>Error generating prediction metrics: {str(metrics_error)}</p>"
+        except Exception as e:
+            html_section += "<p>Error initializing predictions: " + str(e) + "</p>"
         
-    except Exception as e:
-        html_section += f"<p>Error initializing predictions: {str(e)}</p>"
-    
-    return html_section
+        return html_section
     
     def _generate_3d_charts_section(self, visualizations) -> str:
         """Generate 3D visualization charts section for HTML report."""
-        html_section = """
-        
-            📊 3D Visualizations
-
-            Interactive three-dimensional analysis for comprehensive market insights.
-
-        """
+        html_section = "<h2>📊 3D Visualizations</h2><p>Interactive three-dimensional analysis for comprehensive market insights.</p>"
         
         try:
             # Check if visualizations has 3D chart methods
@@ -623,64 +428,28 @@ class HTMLReportGenerator:
                 chart = visualizations.get_3d_price_volume_chart()
                 if chart:
                     chart_html = chart.to_html(include_plotlyjs=False, div_id="3d_price_volume")
-                    html_section += f"""
-                    
-                        3D Price-Volume Analysis
-
-                        Three-dimensional visualization of price movements, volume, and time relationships.
-
-                        {chart_html}
-                    
-
-                    """
+                    html_section += "<h3>3D Price-Volume Analysis</h3><p>Three-dimensional visualization of price movements, volume, and time relationships.</p>" + chart_html
             
             if hasattr(visualizations, 'get_3d_technical_surface'):
                 chart = visualizations.get_3d_technical_surface()
                 if chart:
                     chart_html = chart.to_html(include_plotlyjs=False, div_id="3d_technical_surface")
-                    html_section += f"""
-                    
-                        3D Technical Indicator Surface
-
-                        Surface plot showing relationships between multiple technical indicators.
-
-                        {chart_html}
-                    
-
-                    """
+                    html_section += "<h3>3D Technical Indicator Surface</h3><p>Surface plot showing relationships between multiple technical indicators.</p>" + chart_html
             
             if hasattr(visualizations, 'get_3d_market_dynamics'):
                 chart = visualizations.get_3d_market_dynamics()
                 if chart:
                     chart_html = chart.to_html(include_plotlyjs=False, div_id="3d_market_dynamics")
-                    html_section += f"""
-                    
-                        3D Market Dynamics
-
-                        Multi-dimensional view of market behavior and trading patterns.
-
-                        {chart_html}
-                    
-
-                    """
+                    html_section += "<h3>3D Market Dynamics</h3><p>Multi-dimensional view of market behavior and trading patterns.</p>" + chart_html
             
         except Exception as e:
-            html_section += f"Error generating 3D charts: {str(e)}
-"
+            html_section += "<p>Error generating 3D charts: " + str(e) + "</p>"
         
-        html_section += "
-"
         return html_section
     
     def _generate_advanced_analytics_section(self, advanced_analytics) -> str:
         """Generate advanced analytics section for HTML report."""
-        html_section = """
-        
-            🎯 Advanced Analytics
-
-            Comprehensive sector analysis, correlations, and market intelligence.
-
-        """
+        html_section = "<h2>🎯 Advanced Analytics</h2><p>Comprehensive sector analysis, correlations, and market intelligence.</p>"
         
         try:
             # Sector Performance Analysis
@@ -688,68 +457,32 @@ class HTMLReportGenerator:
                 chart = advanced_analytics.create_sector_performance_chart()
                 if chart:
                     chart_html = chart.to_html(include_plotlyjs=False, div_id="sector_performance")
-                    html_section += f"""
-                    
-                        Sector Performance Analysis
-
-                        Comparative performance across different market sectors.
-
-                        {chart_html}
-                    
-
-                    """
+                    html_section += "<h3>Sector Performance Analysis</h3><p>Comparative performance across different market sectors.</p>" + chart_html
             
             # Correlation Heatmap
             if hasattr(advanced_analytics, 'create_correlation_heatmap'):
                 chart = advanced_analytics.create_correlation_heatmap()
                 if chart:
                     chart_html = chart.to_html(include_plotlyjs=False, div_id="correlation_heatmap")
-                    html_section += f"""
-                    
-                        Market Correlation Analysis
-
-                        Heat map showing correlations between different market metrics and indicators.
-
-                        {chart_html}
-                    
-
-                    """
+                    html_section += "<h3>Market Correlation Analysis</h3><p>Heat map showing correlations between different market metrics and indicators.</p>" + chart_html
             
             # Performance Dashboard
             if hasattr(advanced_analytics, 'create_performance_dashboard'):
                 chart = advanced_analytics.create_performance_dashboard()
                 if chart:
                     chart_html = chart.to_html(include_plotlyjs=False, div_id="performance_dashboard")
-                    html_section += f"""
-                    
-                        Comprehensive Performance Dashboard
-
-                        Multi-metric dashboard showing key performance indicators and trends.
-
-                        {chart_html}
-                    
-
-                    """
+                    html_section += "<h3>Comprehensive Performance Dashboard</h3><p>Multi-metric dashboard showing key performance indicators and trends.</p>" + chart_html
             
             # Industry Analysis
             if hasattr(advanced_analytics, 'get_industry_analysis'):
                 industry_data = advanced_analytics.get_industry_analysis()
                 if industry_data is not None and not industry_data.empty:
-                    html_section += """
-                    
-                        Industry Analysis Summary
-
-                        
-                    """
+                    html_section += "<h3>Industry Analysis Summary</h3><table class='summary-table'>"
                     html_section += industry_data.head(10).to_html(classes="summary-table", escape=False)
-                    html_section += "
-
-"
+                    html_section += "</table>"
             
         except Exception as e:
-            html_section += f"Error generating advanced analytics: {str(e)}
-"
+            html_section += "<p>Error generating advanced analytics: " + str(e) + "</p>"
         
-        html_section += "
-"
         return html_section
+```
