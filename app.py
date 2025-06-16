@@ -1043,6 +1043,10 @@ def advanced_analytics_section():
                 st.plotly_chart(heatmap_fig, use_container_width=True, key="correlation_heatmap")
             except Exception as e:
                 st.warning(f"Could not generate Correlation Matrix: {str(e)}")
+            if 'Date' not in data_clean.columns:
+                data_clean = data_clean.reset_index()
+                if 'Date' not in data_clean.columns:
+                    data_clean['Date'] = data_clean.index
             st.subheader("📈 Professional Technical Analysis Chart")
             try:
                 candlestick_fig = risk_gauge.create_advanced_candlestick(data_clean)
