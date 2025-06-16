@@ -310,7 +310,7 @@ class HTMLReportGenerator:
         return html_section
 
     def _generate_visualizations(self, additional_figures: Dict) -> str:
-        """Generate advanced visualizations section."""
+        """Generate advanced visualizations section with explicit color settings."""
         html_section = "<p>Interactive charts for advanced analysis.</p>"
         try:
             chart_mappings = [
@@ -320,7 +320,7 @@ class HTMLReportGenerator:
                 ('3d_factor_analysis', '3D Factor Analysis', '3d-factor-chart'),
                 ('3d_risk_surface', '3D Risk Surface Analysis', '3d-risk-surface-chart'),
                 ('market_overview_dashboard', 'Market Overview Dashboard', 'market-overview-chart'),
-                ('market_cap_chart', 'Market Capitalization Chart', 'market-cap-chart'),
+                ('market_cap_chart', 'Market Cap Distribution', 'market-cap-chart'),
                 ('sector_pie_chart', 'Sector Distribution', 'sector-pie-chart'),
                 ('correlation_heatmap_daily', 'Daily Correlation Heatmap', 'corr-heatmap-daily'),
                 ('performance_scatter', 'Performance vs Volume Scatter', 'perf-scatter-chart'),
@@ -334,10 +334,23 @@ class HTMLReportGenerator:
                 ('rsi_chart', 'RSI Chart', 'rsi-chart'),
                 ('macd_chart', 'MACD Chart', 'macd-chart'),
                 ('bollinger_bands', 'Bollinger Bands', 'bb-chart'),
+                ('country_distribution', 'Country Distribution', 'country-dist-chart'),
             ]
+            colors = ['#1e90ff', '#ff4500', '#32cd32', '#ff69b4', '#ffd700', '#adff2f', '#ff8c00', '#00ced1', '#ba55d3', '#ff1493']
             for key, title, chart_id in chart_mappings:
                 if key in additional_figures and additional_figures[key]:
-                    chart_html = pio.to_html(additional_figures[key], full_html=False, config={'displayModeBar': False})
+                    fig = additional_figures[key]
+                    if key in ['market_cap_chart', 'sector_pie_chart', 'country_distribution']:
+                        if isinstance(fig, go.Figure):
+                            # Explicitly set colors for pie and bar charts
+                            if key in ['market_cap_chart', 'sector_pie_chart']:
+                                fig.update_traces(marker=dict(colors=colors[:len(fig.data[0].labels)] if len(fig.data[0].labels) <= len(colors) else colors))
+                            elif key == 'country_distribution':
+                                fig.update_traces(marker_color=colors[:len(fig.data[0].x)] if len(fig.data[0].x) <= len(colors) else colors)
+                            # Ensure chart background contrasts with page background
+                            fig.update_layout(plot_bgcolor='rgba(255, 255, 255, 0.9)', paper_bgcolor='rgba(255, 255, 255, 0.9)')
+                            print(f"Debug - {key} data: labels={fig.data[0].labels}, values={fig.data[0].values}" if key in ['market_cap_chart', 'sector_pie_chart'] else f"Debug - {key} data: x={fig.data[0].x}, y={fig.data[0].y}")
+                    chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False})
                     html_section += f"""
                     <details>
                         <summary>{html.escape(title)}</summary>
