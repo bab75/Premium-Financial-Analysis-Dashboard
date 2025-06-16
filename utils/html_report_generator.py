@@ -310,7 +310,7 @@ class HTMLReportGenerator:
         return html_section
 
     def _generate_visualizations(self, additional_figures: Dict) -> str:
-        """Generate advanced visualizations section with explicit color settings."""
+        """Generate advanced visualizations section with optimized size."""
         html_section = "<p>Interactive charts for advanced analysis.</p>"
         try:
             chart_mappings = [
@@ -320,7 +320,7 @@ class HTMLReportGenerator:
                 ('3d_factor_analysis', '3D Factor Analysis', '3d-factor-chart'),
                 ('3d_risk_surface', '3D Risk Surface Analysis', '3d-risk-surface-chart'),
                 ('market_overview_dashboard', 'Market Overview Dashboard', 'market-overview-chart'),
-                ('market_cap_chart', 'Market Cap Distribution', 'market-cap-chart'),
+                ('market_cap_chart', 'Market Capitalization Chart', 'market-cap-chart'),
                 ('sector_pie_chart', 'Sector Distribution', 'sector-pie-chart'),
                 ('correlation_heatmap_daily', 'Daily Correlation Heatmap', 'corr-heatmap-daily'),
                 ('performance_scatter', 'Performance vs Volume Scatter', 'perf-scatter-chart'),
@@ -334,23 +334,13 @@ class HTMLReportGenerator:
                 ('rsi_chart', 'RSI Chart', 'rsi-chart'),
                 ('macd_chart', 'MACD Chart', 'macd-chart'),
                 ('bollinger_bands', 'Bollinger Bands', 'bb-chart'),
-                ('country_distribution', 'Country Distribution', 'country-dist-chart'),
             ]
-            colors = ['#1e90ff', '#ff4500', '#32cd32', '#ff69b4', '#ffd700', '#adff2f', '#ff8c00', '#00ced1', '#ba55d3', '#ff1493']
             for key, title, chart_id in chart_mappings:
                 if key in additional_figures and additional_figures[key]:
                     fig = additional_figures[key]
-                    if key in ['market_cap_chart', 'sector_pie_chart', 'country_distribution']:
-                        if isinstance(fig, go.Figure):
-                            # Explicitly set colors for pie and bar charts
-                            if key in ['market_cap_chart', 'sector_pie_chart']:
-                                fig.update_traces(marker=dict(colors=colors[:len(fig.data[0].labels)] if len(fig.data[0].labels) <= len(colors) else colors))
-                            elif key == 'country_distribution':
-                                fig.update_traces(marker_color=colors[:len(fig.data[0].x)] if len(fig.data[0].x) <= len(colors) else colors)
-                            # Ensure chart background contrasts with page background
-                            fig.update_layout(plot_bgcolor='rgba(255, 255, 255, 0.9)', paper_bgcolor='rgba(255, 255, 255, 0.9)')
-                            print(f"Debug - {key} data: labels={fig.data[0].labels}, values={fig.data[0].values}" if key in ['market_cap_chart', 'sector_pie_chart'] else f"Debug - {key} data: x={fig.data[0].x}, y={fig.data[0].y}")
-                    chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False})
+                    # Optimize chart size
+                    fig.update_layout(height=300, width=600, margin=dict(l=40, r=40, t=40, b=40))
+                    chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False, 'responsive': True})
                     html_section += f"""
                     <details>
                         <summary>{html.escape(title)}</summary>
@@ -488,15 +478,16 @@ class HTMLReportGenerator:
         return html_section
 
     def _generate_price_predictions(self, historical_data, predictions) -> str:
-        """Generate price predictions section with chart and table for multiple methods."""
+        """Generate price predictions section with optimized chart size."""
         html_section = ""
         try:
             if len(historical_data) > 50:
                 pred_days = 7
                 prediction_methods = ["technical_analysis", "moving_average", "learning_trend"]
-                recent_data = historical_data.tail(20)
+                # Downsample historical data to reduce size
+                recent_data = historical_data.tail(20).iloc[::2]  # Take every second point
                 historical_dates = recent_data.index
-                historical_prices = recent_data['Close'].values if 'Close' in recent_data.columns else np.zeros(20)
+                historical_prices = recent_data['Close'].values if 'Close' in recent_data.columns else np.zeros(len(recent_data))
                 
                 for method in prediction_methods:
                     pred_prices = predictions.predict_prices(pred_days, method=method) if hasattr(predictions, 'predict_prices') else []
@@ -514,8 +505,8 @@ class HTMLReportGenerator:
                     fig = go.Figure()
                     fig.add_trace(go.Scatter(x=historical_dates, y=historical_prices, mode='lines', name='Historical Prices', line=dict(color='blue')))
                     fig.add_trace(go.Scatter(x=future_dates, y=pred_prices, mode='lines+markers', name=f'Predicted Prices ({method.replace("_", " ").title()})', line=dict(color='red' if method == "technical_analysis" else 'green' if method == "moving_average" else 'purple', dash='dash')))
-                    fig.update_layout(title=f'7-Day Price Prediction ({method.replace("_", " ").title()})', xaxis_title='Date', yaxis_title='Price ($)', hovermode='x unified', height=400)
-                    chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False})
+                    fig.update_layout(title=f'7-Day Price Prediction ({method.replace("_", " ").title()})', xaxis_title='Date', yaxis_title='Price ($)', hovermode='x unified', height=300, width=600, margin=dict(l=40, r=40, t=40, b=40))
+                    chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False, 'responsive': True})
                     
                     html_section += f"""
                     <details>
