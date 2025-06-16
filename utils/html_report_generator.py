@@ -64,184 +64,127 @@ class HTMLReportGenerator:
     def __init__(self):
         self.css_styles = """
             <style>
-                @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css');
-                @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
-
                 body {
-                    font-family: 'Roboto', sans-serif;
-                    margin: 0;
-                    padding: 20px;
-                    background: linear-gradient(135deg, #e6f0fa, #d0e1f9);
-                    color: #1a202c;
-                    line-height: 1.6;
-                    overflow-x: hidden;
-                }
-                .header {
-                    position: relative;
-                    text-align: center;
-                    padding: 40px 20px;
-                    background: linear-gradient(180deg, #2b6cb0, #63b3ed);
-                    border-radius: 15px;
-                    margin-bottom: 30px;
-                    background-attachment: fixed;
+                    font-family: 'Arial', sans-serif;
+                    margin: 20px;
+                    background: linear-gradient(135deg, #e0eafc, #cfdef3);
+                    font-size: 16px;
+                    color: #333;
                 }
                 h1 {
-                    color: #ffffff;
-                    font-size: 2.8em;
+                    color: #1e3a8a;
+                    text-align: center;
+                    font-size: 2.5em;
                     font-weight: 700;
-                    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
-                    margin: 0;
-                    animation: slideIn 1.5s ease-out;
-                }
-                @keyframes slideIn {
-                    from { transform: translateY(-50px); opacity: 0; }
-                    to { transform: translateY(0); opacity: 1; }
+                    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+                    background: linear-gradient(90deg, #1e3a8a, #3b82f6);
+                    -webkit-background-clip: text;
+                    background-clip: text;
+                    color: transparent;
                 }
                 h2, h3, h4 {
-                    color: #2d3748;
+                    color: #1e40af;
                     font-weight: 600;
-                    margin-top: 25px;
                 }
-                h2 { font-size: 1.9em; }
-                h3 { font-size: 1.6em; }
-                h4 { font-size: 1.3em; }
-                .section {
-                    margin: 30px auto;
-                    background: rgba(255, 255, 255, 0.9);
-                    padding: 25px;
-                    border-radius: 15px;
-                    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
-                    backdrop-filter: blur(10px);
-                    -webkit-backdrop-filter: blur(10px);
-                    border: 1px solid rgba(255, 255, 255, 0.3);
-                    max-width: 1200px;
-                    transition: transform 0.4s ease, box-shadow 0.4s ease;
+                h2 { font-size: 1.8em; }
+                h3 { font-size: 1.5em; }
+                h4 { font-size: 1.2em; }
+                .chart-container {
+                    margin: 20px 0;
+                    padding: 15px;
+                    background: #ffffff;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                    transition: transform 0.3s ease;
                 }
-                .section:hover {
+                .chart-container:hover {
                     transform: translateY(-5px);
-                    box-shadow: 0 12px 20px rgba(0, 0, 0, 0.15);
+                }
+                .section {
+                    margin: 30px 0;
+                    background: #fff;
+                    padding: 20px;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
                 }
                 .metric-card {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-                    gap: 20px;
-                    margin: 20px 0;
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 15px;
                 }
                 .metric {
-                    background: rgba(255, 255, 255, 0.7);
-                    padding: 15px;
-                    border-radius: 10px;
+                    background: linear-gradient(145deg, #ffffff, #f3f4f6);
+                    padding: 12px;
+                    border-radius: 8px;
+                    flex: 1;
+                    min-width: 150px;
                     text-align: center;
                     font-weight: 500;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
                     transition: all 0.3s ease;
-                    backdrop-filter: blur(5px);
                 }
                 .metric:hover {
                     transform: scale(1.05);
-                    background: rgba(255, 255, 255, 0.85);
+                    background: linear-gradient(145deg, #f3f4f6, #e5e7eb);
                 }
                 table {
                     width: 100%;
                     border-collapse: collapse;
-                    margin: 15px 0;
-                    background: rgba(255, 255, 255, 0.9);
-                    font-size: 0.95em;
+                    margin: 10px 0;
+                    background: #fff;
                 }
                 th, td {
-                    border: 1px solid #e2e8f0;
-                    padding: 12px;
+                    border: 1px solid #e5e7eb;
+                    padding: 10px;
                     text-align: left;
+                    font-size: 0.95em;
                 }
                 th {
-                    background: linear-gradient(90deg, #2b6cb0, #63b3ed);
-                    color: #ffffff;
+                    background: linear-gradient(90deg, #1e3a8a, #3b82f6);
+                    color: #fff;
                     font-weight: 600;
                 }
                 .disclaimer {
                     font-style: italic;
-                    color: #4a5568;
+                    color: #64748b;
                     font-size: 0.9em;
-                    margin-top: 20px;
-                    padding: 10px;
-                    background: rgba(255, 255, 255, 0.7);
-                    border-radius: 8px;
                 }
-                .signal-buy { color: #48bb78; font-weight: bold; }
-                .signal-sell { color: #f56565; font-weight: bold; }
-                .signal-hold { color: #718096; font-weight: bold; }
+                .signal-buy { color: #10b981; font-weight: bold; }
+                .signal-sell { color: #ef4444; font-weight: bold; }
+                .signal-hold { color: #64748b; font-weight: bold; }
                 details {
-                    margin: 15px 0;
-                    background: rgba(255, 255, 255, 0.9);
-                    border-radius: 10px;
-                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
-                    overflow: hidden;
+                    margin: 10px 0;
+                    background: #fff;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
                 }
                 summary {
                     cursor: pointer;
                     font-weight: 600;
-                    color: #2d3748;
-                    padding: 15px;
-                    background: rgba(255, 255, 255, 0.5);
+                    color: #1e40af;
+                    padding: 10px;
+                    background: linear-gradient(90deg, #e0eafc, #cfdef3);
+                    border-radius: 8px 8px 0 0;
                     transition: all 0.3s ease;
                 }
                 summary:hover {
-                    background: rgba(255, 255, 255, 0.7);
-                    color: #2b6cb0;
+                    background: linear-gradient(90deg, #cfdef3, #e0eafc);
+                    color: #1e3a8a;
                 }
                 details[open] summary {
-                    background: linear-gradient(90deg, #2b6cb0, #63b3ed);
-                    color: #ffffff;
+                    background: linear-gradient(90deg, #1e3a8a, #3b82f6);
+                    color: #fff;
+                    border-radius: 8px 8px 0 0;
                 }
                 details div {
                     padding: 15px;
-                    background: rgba(255, 255, 255, 0.9);
-                }
-                .chart-container {
-                    margin: 20px auto;
-                    padding: 15px;
-                    background: rgba(255, 255, 255, 0.95);
-                    border-radius: 12px;
-                    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
-                    border: 2px solid #e2e8f0;
-                    width: 700px;
-                    height: 500px;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    transition: transform 0.3s ease;
-                }
-                .chart-container:hover {
-                    transform: translateY(-3px);
-                }
-                .progress-bar {
-                    width: 100%;
-                    height: 5px;
-                    background: #e2e8f0;
-                    margin: 10px 0;
-                    border-radius: 5px;
-                    overflow: hidden;
-                }
-                .progress {
-                    height: 100%;
-                    background: linear-gradient(90deg, #48bb78, #2b6cb0);
-                    width: 0;
-                    animation: progressAnimation 2s ease-out forwards;
-                }
-                @keyframes progressAnimation {
-                    from { width: 0; }
-                    to { width: 100%; }
+                    background: #ffffff;
+                    border-radius: 0 0 8px 8px;
                 }
             </style>
         """
         self.js_script = """
             <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-            <script>
-                document.addEventListener('DOMContentLoaded', () => {
-                    const progress = document.querySelector('.progress');
-                    setTimeout(() => progress.style.width = '100%', 50);
-                });
-            </script>
         """
 
     def generate_comprehensive_report(self, 
@@ -271,7 +214,7 @@ class HTMLReportGenerator:
             <html>
             <head><title>Financial Analysis Report - {stock_symbol}</title>{self.css_styles}{self.js_script}</head>
             <body>
-                <div class="header"><h1>Financial Analysis Report: {stock_symbol}</h1></div>
+                <h1>Financial Analysis Report: {stock_symbol}</h1>
                 <p style="text-align: center;">Generated on: {timestamp}</p>
                 <div class="section"><p>No historical data available to generate the report.</p></div>
             </body>
@@ -286,26 +229,22 @@ class HTMLReportGenerator:
             {self.js_script}
         </head>
         <body>
-            <div class="header"><h1>Financial Analysis Report: {stock_symbol}</h1></div>
+            <h1>Financial Analysis Report: {stock_symbol}</h1>
             <p style="text-align: center;">Generated on: {timestamp}</p>
             <div class="section">
                 <h2>Overview</h2>
-                <div class="progress-bar"><div class="progress"></div></div>
                 {self._generate_overview(historical_data)}
             </div>
             <div class="section">
                 <h2>Advanced Visualizations</h2>
-                <div class="progress-bar"><div class="progress"></div></div>
                 {self._generate_visualizations(additional_figures)}
             </div>
             <div class="section">
                 <h2>Technical Indicators</h2>
-                <div class="progress-bar"><div class="progress"></div></div>
                 {self._generate_technical_indicators(tech_indicators)}
             </div>
             <div class="section">
                 <h2>Trading Insights</h2>
-                <div class="progress-bar"><div class="progress"></div></div>
                 {self._generate_trading_insights(tech_indicators, analytics)}
             </div>
         """
@@ -314,7 +253,6 @@ class HTMLReportGenerator:
             html_content += f"""
             <div class="section">
                 <h2>Price Predictions</h2>
-                <div class="progress-bar"><div class="progress"></div></div>
                 {self._generate_price_predictions(historical_data, predictions)}
             </div>
             """
@@ -323,7 +261,6 @@ class HTMLReportGenerator:
             html_content += f"""
             <div class="section">
                 <h2>Comparative Analysis</h2>
-                <div class="progress-bar"><div class="progress"></div></div>
                 {self._generate_comparative_analysis(advanced_analytics)}
             </div>
             """
@@ -332,7 +269,6 @@ class HTMLReportGenerator:
             html_content += f"""
             <div class="section">
                 <h2>Data Summary</h2>
-                <div class="progress-bar"><div class="progress"></div></div>
                 {self._generate_data_summary(historical_data)}
             </div>
             """
@@ -374,7 +310,7 @@ class HTMLReportGenerator:
         return html_section
 
     def _generate_visualizations(self, additional_figures: Dict) -> str:
-        """Generate advanced visualizations section with optimized size and error handling."""
+        """Generate advanced visualizations section."""
         html_section = "<p>Interactive charts for advanced analysis.</p>"
         try:
             chart_mappings = [
@@ -399,26 +335,12 @@ class HTMLReportGenerator:
                 ('macd_chart', 'MACD Chart', 'macd-chart'),
                 ('bollinger_bands', 'Bollinger Bands', 'bb-chart'),
             ]
-            colors = ['#2b6cb0', '#48bb78', '#f56565', '#ecc94b', '#9f7aea', '#ed8936', '#38b2ac', '#667eea', '#ed64a6', '#d69e2e']
             for key, title, chart_id in chart_mappings:
                 if key in additional_figures and additional_figures[key]:
-                    fig = additional_figures[key]
-                    # Optimize and size up charts
-                    fig.update_layout(height=500, width=700, margin=dict(l=40, r=40, t=40, b=40), hovermode='closest')
-                    # Apply styling based on chart type
-                    if fig.data and hasattr(fig.data[0], 'type'):
-                        if fig.data[0].type == 'pie':
-                            fig.update_traces(marker=dict(colors=colors[:len(fig.data[0].labels)] if len(fig.data[0].labels) <= len(colors) else colors))
-                        elif fig.data[0].type == 'bar':
-                            fig.update_traces(marker_color=colors[0] if len(fig.data) == 1 else [colors[i % len(colors)] for i in range(len(fig.data[0].x))])
-                        elif fig.data[0].type == 'candlestick':
-                            fig.update_traces(increasing_line=dict(width=1.5), decreasing_line=dict(width=1.5))
-                        elif fig.data[0].type in ['scatter', 'line']:
-                            fig.update_traces(line_color=colors[0], marker_color=colors[0])
-                    chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False, 'responsive': True})
+                    chart_html = pio.to_html(additional_figures[key], full_html=False, config={'displayModeBar': False})
                     html_section += f"""
                     <details>
-                        <summary>{html.escape(title)} <i class='fas fa-chart-line'></i></summary>
+                        <summary>{html.escape(title)}</summary>
                         <div class="chart-container">
                             {chart_html}
                         </div>
@@ -482,7 +404,6 @@ class HTMLReportGenerator:
             
             html_section += f"""
             <h3>Signal Summary</h3>
-            <div class="progress-bar"><div class="progress"></div></div>
             <div class="metric-card">
                 <div class="metric"><strong>Buy Signals</strong><br>{signal_summary['buy']}</div>
                 <div class="metric"><strong>Sell Signals</strong><br>{signal_summary['sell']}</div>
@@ -502,7 +423,7 @@ class HTMLReportGenerator:
             if strategies:
                 html_section += """
                 <details>
-                    <summary>Recommended Trading Strategies <i class='fas fa-lightbulb'></i></summary>
+                    <summary>Recommended Trading Strategies</summary>
                     <div>
                 """
                 for i, strategy in enumerate(strategies):
@@ -519,7 +440,7 @@ class HTMLReportGenerator:
             if risk_metrics:
                 html_section += """
                 <details>
-                    <summary>Risk Metrics <i class='fas fa-shield-alt'></i></summary>
+                    <summary>Risk Metrics</summary>
                     <div class="metric-card">
                 """
                 for metric, value in risk_metrics.items():
@@ -531,7 +452,7 @@ class HTMLReportGenerator:
             if patterns:
                 html_section += """
                 <details>
-                    <summary>Market Patterns Analysis <i class='fas fa-chart-pie'></i></summary>
+                    <summary>Market Patterns Analysis</summary>
                     <div>
                 """
                 if patterns.get('seasonal_patterns'):
@@ -554,16 +475,15 @@ class HTMLReportGenerator:
         return html_section
 
     def _generate_price_predictions(self, historical_data, predictions) -> str:
-        """Generate price predictions section with optimized chart size."""
+        """Generate price predictions section with chart and table for multiple methods."""
         html_section = ""
         try:
             if len(historical_data) > 50:
                 pred_days = 7
                 prediction_methods = ["technical_analysis", "moving_average", "learning_trend"]
-                # Aggressive downsampling to reduce size
-                recent_data = historical_data.tail(15).iloc[::3]  # Take every third point
+                recent_data = historical_data.tail(20)
                 historical_dates = recent_data.index
-                historical_prices = recent_data['Close'].values if 'Close' in recent_data.columns else np.zeros(len(recent_data))
+                historical_prices = recent_data['Close'].values if 'Close' in recent_data.columns else np.zeros(20)
                 
                 for method in prediction_methods:
                     pred_prices = predictions.predict_prices(pred_days, method=method) if hasattr(predictions, 'predict_prices') else []
@@ -579,14 +499,14 @@ class HTMLReportGenerator:
                     future_dates = pd.date_range(start=historical_dates[-1] + pd.Timedelta(days=1), periods=pred_days, freq='D') if pd.api.types.is_datetime64_any_dtype(historical_dates) else pd.date_range(start=pd.Timestamp('2025-06-15') + pd.Timedelta(days=1), periods=pred_days, freq='D')
                     
                     fig = go.Figure()
-                    fig.add_trace(go.Scatter(x=historical_dates, y=historical_prices, mode='lines', name='Historical Prices', line=dict(color='#2b6cb0')))
-                    fig.add_trace(go.Scatter(x=future_dates, y=pred_prices, mode='lines+markers', name=f'Predicted Prices ({method.replace("_", " ").title()})', line=dict(color='#48bb78' if method == "technical_analysis" else '#f56565' if method == "moving_average" else '#ecc94b', dash='dash')))
-                    fig.update_layout(title=f'7-Day Price Prediction ({method.replace("_", " ").title()})', xaxis_title='Date', yaxis_title='Price ($)', hovermode='closest', height=500, width=700, margin=dict(l=40, r=40, t=40, b=40))
-                    chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False, 'responsive': True})
+                    fig.add_trace(go.Scatter(x=historical_dates, y=historical_prices, mode='lines', name='Historical Prices', line=dict(color='blue')))
+                    fig.add_trace(go.Scatter(x=future_dates, y=pred_prices, mode='lines+markers', name=f'Predicted Prices ({method.replace("_", " ").title()})', line=dict(color='red' if method == "technical_analysis" else 'green' if method == "moving_average" else 'purple', dash='dash')))
+                    fig.update_layout(title=f'7-Day Price Prediction ({method.replace("_", " ").title()})', xaxis_title='Date', yaxis_title='Price ($)', hovermode='x unified', height=400)
+                    chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False})
                     
                     html_section += f"""
                     <details>
-                        <summary>Price Prediction: {method.replace("_", " ").title()} <i class='fas fa-chart-line'></i></summary>
+                        <summary>Price Prediction: {method.replace("_", " ").title()}</summary>
                         <div>
                             <div class="chart-container">
                                 {chart_html}
@@ -635,7 +555,7 @@ class HTMLReportGenerator:
             if not sector_analysis.empty:
                 html_section += """
                 <details>
-                    <summary>Sector Performance <i class='fas fa-pie-chart'></i></summary>
+                    <summary>Sector Performance</summary>
                     <div>
                         <table>
                 """
@@ -653,7 +573,7 @@ class HTMLReportGenerator:
                 summary_stats = data['Close'].describe()
                 html_section += """
                 <details>
-                    <summary>Data Summary <i class='fas fa-table'></i></summary>
+                    <summary>Data Summary</summary>
                     <div>
                         <table>
                             <tr><th>Metric</th><th>Value</th></tr>
