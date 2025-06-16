@@ -65,121 +65,133 @@ class HTMLReportGenerator:
         self.css_styles = """
             <style>
                 body {
-                    font-family: 'Arial', sans-serif;
+                    font-family: 'Arial', 'Helvetica', sans-serif;
                     margin: 20px;
-                    background: linear-gradient(135deg, #e0eafc, #cfdef3);
+                    background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
                     font-size: 16px;
-                    color: #333;
+                    color: #2d3748;
+                    line-height: 1.6;
                 }
                 h1 {
-                    color: #1e3a8a;
+                    color: #2b6cb0;
                     text-align: center;
                     font-size: 2.5em;
                     font-weight: 700;
-                    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-                    background: linear-gradient(90deg, #1e3a8a, #3b82f6);
+                    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1);
+                    background: linear-gradient(90deg, #2b6cb0, #63b3ed);
                     -webkit-background-clip: text;
                     background-clip: text;
                     color: transparent;
+                    margin-bottom: 20px;
+                    animation: fadeIn 1s ease-in;
+                }
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
                 }
                 h2, h3, h4 {
-                    color: #1e40af;
+                    color: #2c5282;
                     font-weight: 600;
+                    margin-top: 20px;
                 }
                 h2 { font-size: 1.8em; }
                 h3 { font-size: 1.5em; }
                 h4 { font-size: 1.2em; }
-                .chart-container {
-                    margin: 20px 0;
-                    padding: 15px;
-                    background: #ffffff;
-                    border-radius: 12px;
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-                    transition: transform 0.3s ease;
-                }
-                .chart-container:hover {
-                    transform: translateY(-5px);
-                }
                 .section {
-                    margin: 30px 0;
-                    background: #fff;
+                    margin: 25px 0;
+                    background: #ffffff;
                     padding: 20px;
                     border-radius: 10px;
-                    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+                    transition: transform 0.3s ease, box-shadow 0.3s ease;
+                }
+                .section:hover {
+                    transform: translateY(-3px);
+                    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
                 }
                 .metric-card {
-                    display: flex;
-                    flex-wrap: wrap;
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
                     gap: 15px;
+                    margin: 15px 0;
                 }
                 .metric {
-                    background: linear-gradient(145deg, #ffffff, #f3f4f6);
+                    background: linear-gradient(145deg, #ffffff, #edf2f7);
                     padding: 12px;
                     border-radius: 8px;
-                    flex: 1;
-                    min-width: 150px;
                     text-align: center;
                     font-weight: 500;
                     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
                     transition: all 0.3s ease;
+                    cursor: default;
                 }
                 .metric:hover {
-                    transform: scale(1.05);
-                    background: linear-gradient(145deg, #f3f4f6, #e5e7eb);
+                    transform: scale(1.03);
+                    background: linear-gradient(145deg, #edf2f7, #e2e8f0);
                 }
                 table {
                     width: 100%;
                     border-collapse: collapse;
                     margin: 10px 0;
                     background: #fff;
-                }
-                th, td {
-                    border: 1px solid #e5e7eb;
-                    padding: 10px;
-                    text-align: left;
                     font-size: 0.95em;
                 }
+                th, td {
+                    border: 1px solid #e2e8f0;
+                    padding: 10px;
+                    text-align: left;
+                }
                 th {
-                    background: linear-gradient(90deg, #1e3a8a, #3b82f6);
-                    color: #fff;
+                    background: linear-gradient(90deg, #2b6cb0, #63b3ed);
+                    color: #ffffff;
                     font-weight: 600;
                 }
                 .disclaimer {
                     font-style: italic;
-                    color: #64748b;
+                    color: #4a5568;
                     font-size: 0.9em;
+                    margin-top: 20px;
                 }
-                .signal-buy { color: #10b981; font-weight: bold; }
-                .signal-sell { color: #ef4444; font-weight: bold; }
-                .signal-hold { color: #64748b; font-weight: bold; }
+                .signal-buy { color: #48bb78; font-weight: bold; }
+                .signal-sell { color: #f56565; font-weight: bold; }
+                .signal-hold { color: #718096; font-weight: bold; }
                 details {
                     margin: 10px 0;
-                    background: #fff;
+                    background: #ffffff;
                     border-radius: 8px;
-                    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+                    overflow: hidden;
                 }
                 summary {
                     cursor: pointer;
                     font-weight: 600;
-                    color: #1e40af;
-                    padding: 10px;
-                    background: linear-gradient(90deg, #e0eafc, #cfdef3);
-                    border-radius: 8px 8px 0 0;
+                    color: #2c5282;
+                    padding: 12px;
+                    background: linear-gradient(90deg, #f0f4f8, #d9e2ec);
                     transition: all 0.3s ease;
                 }
                 summary:hover {
-                    background: linear-gradient(90deg, #cfdef3, #e0eafc);
-                    color: #1e3a8a;
+                    background: linear-gradient(90deg, #d9e2ec, #f0f4f8);
+                    color: #2b6cb0;
                 }
                 details[open] summary {
-                    background: linear-gradient(90deg, #1e3a8a, #3b82f6);
-                    color: #fff;
-                    border-radius: 8px 8px 0 0;
+                    background: linear-gradient(90deg, #2b6cb0, #63b3ed);
+                    color: #ffffff;
                 }
                 details div {
                     padding: 15px;
                     background: #ffffff;
-                    border-radius: 0 0 8px 8px;
+                }
+                .chart-container {
+                    margin: 15px 0;
+                    padding: 10px;
+                    background: #ffffff;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+                    transition: transform 0.3s ease;
+                }
+                .chart-container:hover {
+                    transform: translateY(-2px);
                 }
             </style>
         """
@@ -335,17 +347,20 @@ class HTMLReportGenerator:
                 ('macd_chart', 'MACD Chart', 'macd-chart'),
                 ('bollinger_bands', 'Bollinger Bands', 'bb-chart'),
             ]
-            colors = ['#1e90ff', '#ff4500', '#32cd32', '#ff69b4', '#ffd700', '#adff2f', '#ff8c00', '#00ced1', '#ba55d3', '#ff1493']
+            colors = ['#2b6cb0', '#48bb78', '#f56565', '#ecc94b', '#9f7aea', '#ed8936', '#38b2ac', '#667eea', '#ed64a6', '#d69e2e']
             for key, title, chart_id in chart_mappings:
                 if key in additional_figures and additional_figures[key]:
                     fig = additional_figures[key]
                     # Optimize chart size
-                    fig.update_layout(height=300, width=600, margin=dict(l=40, r=40, t=40, b=40))
+                    fig.update_layout(height=300, width=500, margin=dict(l=30, r=30, t=30, b=30), hovermode='closest')
                     # Apply colors based on chart type
-                    if isinstance(fig.data[0], go.Pie):
-                        fig.update_traces(marker=dict(colors=colors[:len(fig.data[0].labels)] if len(fig.data[0].labels) <= len(colors) else colors))
-                    elif isinstance(fig.data[0], go.Bar):
-                        fig.update_traces(marker_color=colors[:len(fig.data[0].x)] if len(fig.data[0].x) <= len(colors) else colors)
+                    if fig.data and hasattr(fig.data[0], 'type'):
+                        if fig.data[0].type == 'pie':
+                            fig.update_traces(marker=dict(colors=colors[:len(fig.data[0].labels)] if len(fig.data[0].labels) <= len(colors) else colors))
+                        elif fig.data[0].type == 'bar':
+                            fig.update_traces(marker_color=colors[0] if len(fig.data) == 1 else [colors[i % len(colors)] for i in range(len(fig.data[0].x))])
+                        elif fig.data[0].type in ['scatter', 'candlestick']:
+                            fig.update_traces(line_color=colors[0], marker_color=colors[0])
                     chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False, 'responsive': True})
                     html_section += f"""
                     <details>
@@ -490,8 +505,8 @@ class HTMLReportGenerator:
             if len(historical_data) > 50:
                 pred_days = 7
                 prediction_methods = ["technical_analysis", "moving_average", "learning_trend"]
-                # Downsample historical data to reduce size
-                recent_data = historical_data.tail(20).iloc[::2]  # Take every second point
+                # Aggressive downsampling to reduce size
+                recent_data = historical_data.tail(15).iloc[::3]  # Take every third point
                 historical_dates = recent_data.index
                 historical_prices = recent_data['Close'].values if 'Close' in recent_data.columns else np.zeros(len(recent_data))
                 
@@ -509,9 +524,9 @@ class HTMLReportGenerator:
                     future_dates = pd.date_range(start=historical_dates[-1] + pd.Timedelta(days=1), periods=pred_days, freq='D') if pd.api.types.is_datetime64_any_dtype(historical_dates) else pd.date_range(start=pd.Timestamp('2025-06-15') + pd.Timedelta(days=1), periods=pred_days, freq='D')
                     
                     fig = go.Figure()
-                    fig.add_trace(go.Scatter(x=historical_dates, y=historical_prices, mode='lines', name='Historical Prices', line=dict(color='blue')))
-                    fig.add_trace(go.Scatter(x=future_dates, y=pred_prices, mode='lines+markers', name=f'Predicted Prices ({method.replace("_", " ").title()})', line=dict(color='red' if method == "technical_analysis" else 'green' if method == "moving_average" else 'purple', dash='dash')))
-                    fig.update_layout(title=f'7-Day Price Prediction ({method.replace("_", " ").title()})', xaxis_title='Date', yaxis_title='Price ($)', hovermode='x unified', height=300, width=600, margin=dict(l=40, r=40, t=40, b=40))
+                    fig.add_trace(go.Scatter(x=historical_dates, y=historical_prices, mode='lines', name='Historical Prices', line=dict(color='#2b6cb0')))
+                    fig.add_trace(go.Scatter(x=future_dates, y=pred_prices, mode='lines+markers', name=f'Predicted Prices ({method.replace("_", " ").title()})', line=dict(color='#48bb78' if method == "technical_analysis" else '#f56565' if method == "moving_average" else '#ecc94b', dash='dash')))
+                    fig.update_layout(title=f'7-Day Price Prediction ({method.replace("_", " ").title()})', xaxis_title='Date', yaxis_title='Price ($)', hovermode='closest', height=300, width=500, margin=dict(l=30, r=30, t=30, b=30))
                     chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False, 'responsive': True})
                     
                     html_section += f"""
