@@ -12,6 +12,7 @@ from typing import Dict, List, Optional
 import base64
 import html
 import logging
+import numpy as np  # Added missing import
 
 logging.basicConfig(level=logging.INFO)
 
@@ -368,7 +369,7 @@ class HTMLReportGenerator:
                 pred_days = 7
                 pred_prices = predictions.predict_prices(pred_days, method="technical_analysis") if hasattr(predictions, 'predict_prices') else []
                 if not pred_prices or not isinstance(pred_prices, (list, np.ndarray)) or len(pred_prices) != pred_days:
-                    pred_prices = [historical_data['Close'].iloc[-1]] * pred_days  # Fallback to current price if prediction fails
+                    pred_prices = [historical_data['Close'].iloc[-1]] * pred_days  # Fallback to current price as list
                     print("Warning: Invalid or empty prediction data, using fallback prices")
                 
                 current_price = historical_data['Close'].iloc[-1] if 'Close' in historical_data.columns else 0
@@ -398,7 +399,7 @@ class HTMLReportGenerator:
                     <tr><th>Date</th><th>Predicted Price ($)</th></tr>
                 """
                 for date, price in zip(future_dates, pred_prices):
-                    html_section += f"<tr><td>{date.strftime('%Y-%m-%d')}</td><td>{price:.2f}</td></tr>"
+                    html_section += f"<tr><td>{date.strftime('%Y-%m-%d')}</td><td>{float(price):.2f}</td></tr>"
                 html_section += "</table>"
                 
                 html_section += f"""
