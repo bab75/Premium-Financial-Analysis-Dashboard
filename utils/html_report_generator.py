@@ -1,3 +1,4 @@
+
 """
 HTML Report Generator for Financial Analysis
 Creates comprehensive downloadable HTML reports with interactive charts
@@ -27,33 +28,32 @@ class HTMLReportGenerator:
         try:
             print("Input DataFrame columns:", data.columns.tolist())
             print("Input DataFrame index type:", type(data.index).__name__)
-            if data.index.name == 'Datetime' or 'Datetime' in data.columns:
-                data = data.reset_index()
-                if 'Datetime' in data.columns:
-                    datetime_cols = [col for col in data.columns if col == 'Datetime']
-                    if len(datetime_cols) > 1:
-                        data = data.loc[:, ~data.columns.duplicated()]
-                if 'Date' in data.columns and 'Datetime' not in data.columns:
-                    data = data.rename(columns={'Date': 'Datetime'})
-                for col in ['index', 'level_0']:
-                    if col in data.columns:
-                        data = data.drop(columns=col)
-            if 'Datetime' not in data.columns or not pd.api.types.is_datetime64_any_dtype(data['Datetime']):
-                print("Creating fallback Datetime index due to missing or invalid Datetime column")
+            if 'Datetime' in data.columns:
+                data['Datetime'] = pd.to_datetime(data['Datetime'], errors='coerce')
+                if data['Datetime'].isna().any():
+                    print("Warning: Dropping rows with invalid Datetime values")
+                    data = data.dropna(subset=['Datetime'])
+                data = data.set_index('Datetime')
+            elif data.index.name == 'Datetime' or 'Date' in data.columns:
+                if 'Date' in data.columns:
+                    data['Datetime'] = pd.to_datetime(data['Date'], errors='coerce')
+                    data = data.drop(columns=['Date'])
                 data['Datetime'] = pd.to_datetime(data.index, errors='coerce')
                 if data['Datetime'].isna().all():
+                    print("Creating fallback Datetime index due to missing valid dates")
                     data['Datetime'] = pd.date_range(start='2020-01-01', periods=len(data), freq='D')
-            data['Datetime'] = pd.to_datetime(data['Datetime'], errors='coerce')
-            if data['Datetime'].isna().any():
-                print("Warning: Dropping rows with invalid Datetime values")
-                data = data.dropna(subset=['Datetime'])
+                data = data.set_index('Datetime')
+            else:
+                print("No Datetime column or index found, creating fallback Datetime index")
+                data['Datetime'] = pd.date_range(start='2020-01-01', periods=len(data), freq='D')
+                data = data.set_index('Datetime')
+            
             if 'Adj Close' not in data.columns:
                 data['Adj Close'] = data['Close'] if 'Close' in data.columns else 0
             for col in ['Dividends', 'Stock Splits']:
                 if col not in data.columns:
                     data[col] = 0
-            data = data.sort_values('Datetime')
-            data = data.set_index('Datetime')
+            data = data.sort_index()
             print("Cleaned DataFrame index type:", type(data.index).__name__)
             return data
         except Exception as e:
@@ -172,7 +172,7 @@ class HTMLReportGenerator:
         html_content += f"""
             <div class="section disclaimer">
                 <p><strong>Disclaimer:</strong> This report is for informational purposes only and does not constitute financial advice. Always conduct your own research before making investment decisions.</p>
-                <p>Data analysis period: {str(historical_data.index[0])[:10] if not historical_data.empty else 'N/A'} to {str(historical_data.index[-1])[:10] if not historical_data.empty else 'N/A'}</p>
+                <p>Data analysis period: {historical_data.index[0].strftime('%Y-%m-%d') if not historical_data.empty else 'N/A'} to {historical_data.index[-1].strftime('%Y-%m-%d') if not historical_data.empty else 'N/A'}</p>
             </div>
         </body>
         </html>
@@ -185,8 +185,9 @@ class HTMLReportGenerator:
         html_section = ""
         try:
             if not data.empty:
-                start_date = data.index[0].strftime('%Y-%m-%d') if hasattr(data.index[0], 'strftime') else str(data.index[0])[:10]
-                end_date = data.index[-1].strftime('%Y-%m-%d') if hasattr(data.index[-1], 'strftime') else str(data.index[-1])[:10]
+                # Use the index directly, which should now be a DatetimeIndex
+                start_date = data.index[0].strftime('%Y-%m-%d')
+                end_date = data.index[-1].strftime('%Y-%m-%d')
                 current_price = data['Close'].iloc[-1]
                 total_return = ((current_price / data['Close'].iloc[0]) - 1) * 100 if len(data) > 1 else 0
                 volatility = data['Close'].pct_change().std() * (252 ** 0.5) * 100 if len(data) > 1 else 0
