@@ -161,26 +161,21 @@ def data_upload_section():
         key="historical_data_file",
         help="Upload historical price data with Date, Open, High, Low, Close, Volume columns"
     )
-    
+
     if historical_file is not None:
         try:
             with st.spinner("Processing historical data..."):
                 processor = DataProcessor()
                 historical_data, extracted_symbol = processor.process_historical_data(historical_file)
                 if historical_data is not None:
-                    # Debug: Show loaded columns
-                    st.write(f"Loaded columns: {list(historical_data.columns)}")
-                    
-                    # Validate required columns
+                    # Validate and clean historical data
                     required_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
                     missing_cols = [col for col in required_columns if col not in historical_data.columns]
                     if missing_cols:
                         st.error(f"Missing required columns: {', '.join(missing_cols)}")
                     else:
                         historical_data = historical_data.rename(columns={'Date': 'Datetime'})
-                        historical_data['Datetime'] = pd.to_datetime(historical_data['Datetime'], errors='coerce')
-                        if historical_data['Datetime'].isna().any():
-                            st.warning("Some datetime values could not be parsed and were set to NaN.")
+                        historical_data['Datetime'] = pd.to_datetime(historical_data['Datetime'])
                         historical_data = historical_data.set_index('Datetime')
                         if 'Adj Close' not in historical_data.columns:
                             historical_data['Adj Close'] = historical_data['Close']
@@ -196,7 +191,6 @@ def data_upload_section():
                     st.error("Failed to process historical data file. Please check the format.")
         except Exception as e:
             st.error(f"Error processing historical data: {str(e)}")
-    
 
     if st.session_state.current_data is not None or st.session_state.previous_data is not None:
         st.markdown("---")
