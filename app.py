@@ -153,67 +153,67 @@ def data_upload_section():
                 st.success("✅ Analysis ready! Navigate to Phase 1: Comparative Analysis to see results.")
                 st.balloons()
 
-    st.subheader("📉 Historical Price Data (Optional)")
-st.info("Upload historical price data to enable technical analysis and visualizations without yfinance.")
-historical_file = st.file_uploader(
-    "Upload Historical Price Data (Excel/CSV)",
-    type=['xlsx', 'xls', 'csv'],
-    key="historical_data_file",
-    help="Upload historical price data with Date, Open, High, Low, Close, Volume columns"
-)
+            st.subheader("📉 Historical Price Data (Optional)")
+        st.info("Upload historical price data to enable technical analysis and visualizations without yfinance.")
+        historical_file = st.file_uploader(
+            "Upload Historical Price Data (Excel/CSV)",
+            type=['xlsx', 'xls', 'csv'],
+            key="historical_data_file",
+            help="Upload historical price data with Date, Open, High, Low, Close, Volume columns"
+        )
 
-if historical_file is not None:
-    try:
-        with st.spinner("Processing historical data..."):
-            processor = DataProcessor()
-            historical_data, extracted_symbol = processor.process_historical_data(historical_file)
-            if historical_data is not None:
-                # Debug: Print loaded columns
-                st.write(f"Loaded columns: {list(historical_data.columns)}")
-                
-                # Define required columns
-                required_columns = ['Datetime', 'Open', 'High', 'Low', 'Close', 'Volume']
-                
-                # Check for missing columns (case-insensitive)
-                missing_cols = [col for col in required_columns if col.lower() not in [c.lower() for c in historical_data.columns]]
-                if missing_cols:
-                    st.error(f"Missing required columns: {', '.join(missing_cols)}")
-                else:
-                    # Rename columns to match expected case (e.g., 'Date' or 'date' to 'Datetime')
-                    column_mapping = {col: col for col in historical_data.columns}
-                    for col in historical_data.columns:
-                        if col.lower() in ['date', 'datetime']:
-                            column_mapping[col] = 'Datetime'
-                        for req_col in required_columns[1:]:  # Skip Datetime for other columns
-                            if col.lower() == req_col.lower():
-                                column_mapping[col] = req_col
-                    historical_data = historical_data.rename(columns=column_mapping)
-                    
-                    # Convert Datetime column
-                    try:
-                        historical_data['Datetime'] = pd.to_datetime(historical_data['Datetime'], errors='coerce')
-                        if historical_data['Datetime'].isna().any():
-                            st.warning("Some datetime values could not be parsed and were set to NaN.")
-                    except Exception as e:
-                        st.error(f"Error converting Datetime column: {str(e)}")
-                        historical_data = None
-                    
+        if historical_file is not None:
+            try:
+                with st.spinner("Processing historical data..."):
+                    processor = DataProcessor()
+                    historical_data, extracted_symbol = processor.process_historical_data(historical_file)
                     if historical_data is not None:
-                        historical_data = historical_data.set_index('Datetime')
-                        if 'Adj Close' not in historical_data.columns:
-                            historical_data['Adj Close'] = historical_data['Close']
-                        st.session_state.historical_data = historical_data
-                        if extracted_symbol:
-                            st.session_state.selected_symbol = extracted_symbol
-                        st.success(f"✅ Historical data loaded successfully! ({len(historical_data)} data points)")
-                        if extracted_symbol:
-                            st.info(f"📊 Detected symbol: {extracted_symbol}")
-                        with st.expander("📋 Historical Data Preview"):
-                            st.dataframe(historical_data.head(), use_container_width=True)
-            else:
-                st.error("Failed to process historical data file. Please check the format.")
-    except Exception as e:
-        st.error(f"Error processing historical data: {str(e)}")
+                        # Debug: Print loaded columns
+                        st.write(f"Loaded columns: {list(historical_data.columns)}")
+                        
+                        # Define required columns
+                        required_columns = ['Datetime', 'Open', 'High', 'Low', 'Close', 'Volume']
+                        
+                        # Check for missing columns (case-insensitive)
+                        missing_cols = [col for col in required_columns if col.lower() not in [c.lower() for c in historical_data.columns]]
+                        if missing_cols:
+                            st.error(f"Missing required columns: {', '.join(missing_cols)}")
+                        else:
+                            # Rename columns to match expected case (e.g., 'Date' or 'date' to 'Datetime')
+                            column_mapping = {col: col for col in historical_data.columns}
+                            for col in historical_data.columns:
+                                if col.lower() in ['date', 'datetime']:
+                                    column_mapping[col] = 'Datetime'
+                                for req_col in required_columns[1:]:  # Skip Datetime for other columns
+                                    if col.lower() == req_col.lower():
+                                        column_mapping[col] = req_col
+                            historical_data = historical_data.rename(columns=column_mapping)
+                            
+                            # Convert Datetime column
+                            try:
+                                historical_data['Datetime'] = pd.to_datetime(historical_data['Datetime'], errors='coerce')
+                                if historical_data['Datetime'].isna().any():
+                                    st.warning("Some datetime values could not be parsed and were set to NaN.")
+                            except Exception as e:
+                                st.error(f"Error converting Datetime column: {str(e)}")
+                                historical_data = None
+                            
+                            if historical_data is not None:
+                                historical_data = historical_data.set_index('Datetime')
+                                if 'Adj Close' not in historical_data.columns:
+                                    historical_data['Adj Close'] = historical_data['Close']
+                                st.session_state.historical_data = historical_data
+                                if extracted_symbol:
+                                    st.session_state.selected_symbol = extracted_symbol
+                                st.success(f"✅ Historical data loaded successfully! ({len(historical_data)} data points)")
+                                if extracted_symbol:
+                                    st.info(f"📊 Detected symbol: {extracted_symbol}")
+                                with st.expander("📋 Historical Data Preview"):
+                                    st.dataframe(historical_data.head(), use_container_width=True)
+                                else:
+                                    st.error("Failed to process historical data file. Please check the format.")
+                         except Exception as e:
+                            st.error(f"Error processing historical data: {str(e)}")
 
     if st.session_state.current_data is not None or st.session_state.previous_data is not None:
         st.markdown("---")
