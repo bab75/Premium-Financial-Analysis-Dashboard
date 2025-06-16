@@ -169,7 +169,7 @@ def data_upload_section():
                 historical_data, extracted_symbol = processor.process_historical_data(historical_file)
                 if historical_data is not None:
                     # Validate and clean historical data
-                    required_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+                    required_columns = ['Datetime', 'Open', 'High', 'Low', 'Close', 'Volume']
                     missing_cols = [col for col in required_columns if col not in historical_data.columns]
                     if missing_cols:
                         st.error(f"Missing required columns: {', '.join(missing_cols)}")
