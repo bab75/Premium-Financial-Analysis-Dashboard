@@ -104,11 +104,11 @@ class HTMLReportGenerator:
         # Save chart data to JSON files
         chart_files = self._save_chart_data(additional_figures, historical_data, predictions, report_type)
         
-        # Extract footer dates to avoid nested f-string issues
+        # Extract footer dates
         start_date = historical_data.index[0].strftime('%Y-%m-%d') if not historical_data.empty else 'N/A'
         end_date = historical_data.index[-1].strftime('%Y-%m-%d') if not historical_data.empty else 'N/A'
 
-        # Initialize HTML content
+        # Initialize HTML content with escaped JSX braces
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -212,7 +212,7 @@ class HTMLReportGenerator:
                             </div>
             """
 
-        # Add footer with extracted dates
+        # Add footer with escaped braces
         html_content += f"""
                             <div className="text-sm italic text-neutral">
                                 <p><strong>Disclaimer:</strong> This report is for informational purposes only and does not constitute financial advice.</p>
@@ -241,7 +241,7 @@ class HTMLReportGenerator:
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             {self.js_script}
         </head>
-        <body class="bg-gradient-to-br from-blue-100 to-purple-100 font-sans text-gray-800">
+        <body className="bg-gradient-to-br from-blue-100 to-purple-100 font-sans text-gray-800">
             <div id="root"></div>
             <script type="text/babel">
                 function Report() {{
@@ -371,7 +371,7 @@ class HTMLReportGenerator:
                     html_section += f"""
                     <tr>
                         <td className="p-2 border">{html.escape(indicator)}</td>
-                        <td className="{{`p-2 border font-bold ${signal_class}`}}">{html.escape(signal)}</td>
+                        <td className="p-2 border font-bold {signal_class}">{html.escape(signal)}</td>
                         <td className="p-2 border">{html.escape(strength)}</td>
                         <td className="p-2 border">{html.escape(explanation)}</td>
                     </tr>
