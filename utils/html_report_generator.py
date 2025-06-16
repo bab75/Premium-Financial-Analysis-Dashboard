@@ -90,6 +90,18 @@ class HTMLReportGenerator:
         stock_symbol = html.escape(str(stock_symbol))
         timestamp = html.escape(str(timestamp))
         
+        if historical_data.empty:
+            return f"""
+            <html>
+            <head><title>Financial Analysis Report - {stock_symbol}</title>{self.css_styles}{self.js_script}</head>
+            <body>
+                <h1>Financial Analysis Report: {stock_symbol}</h1>
+                <p style="text-align: center;">Generated on: {timestamp}</p>
+                <div class="section"><p>No historical data available to generate the report.</p></div>
+            </body>
+            </html>
+            """.encode('utf-8')
+
         html_content = f"""
         <html>
         <head>
@@ -100,9 +112,6 @@ class HTMLReportGenerator:
         <body>
             <h1>Financial Analysis Report: {stock_symbol}</h1>
             <p style="text-align: center;">Generated on: {timestamp}</p>
-        """
-        
-        html_content += """
             <div class="section">
                 <h2>Executive Summary</h2>
                 {self._generate_executive_summary(stock_symbol, historical_data, tech_indicators)}
@@ -156,7 +165,7 @@ class HTMLReportGenerator:
         html_content += f"""
             <div class="section disclaimer">
                 <p><strong>Disclaimer:</strong> This report is for informational purposes only and does not constitute financial advice. Always conduct your own research before making investment decisions.</p>
-                <p>Data analysis period: {str(historical_data.index[0])[:10]} to {str(historical_data.index[-1])[:10]}</p>
+                <p>Data analysis period: {str(historical_data.index[0])[:10] if not historical_data.empty else 'N/A'} to {str(historical_data.index[-1])[:10] if not historical_data.empty else 'N/A'}</p>
                 <p>This report was generated automatically by the Financial Analysis Application.</p>
             </div>
         </body>
