@@ -40,7 +40,9 @@ class HTMLReportGenerator:
                         data = data.drop(columns=col)
             if 'Datetime' not in data.columns or not pd.api.types.is_datetime64_any_dtype(data['Datetime']):
                 print("Creating fallback Datetime index due to missing or invalid Datetime column")
-                data['Datetime'] = pd.date_range(start='2020-01-01', periods=len(data), freq='D')
+                data['Datetime'] = pd.to_datetime(data.index, errors='coerce')
+                if data['Datetime'].isna().all():
+                    data['Datetime'] = pd.date_range(start='2020-01-01', periods=len(data), freq='D')
             data['Datetime'] = pd.to_datetime(data['Datetime'], errors='coerce')
             if data['Datetime'].isna().any():
                 print("Warning: Dropping rows with invalid Datetime values")
@@ -63,7 +65,7 @@ class HTMLReportGenerator:
             <style>
                 body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; }
                 h1 { color: #2c3e50; text-align: center; }
-                h2, h3 { color: #34495e; }
+                h2, h3, h4 { color: #34495e; }
                 .chart-container { margin: 20px 0; padding: 10px; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
                 .section { margin: 30px 0; }
                 .metric-card { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -294,7 +296,7 @@ class HTMLReportGenerator:
                 else:
                     signal_summary["hold"] += 1
             
-            html_section += """
+            html_section += f"""
             <h3>Signal Summary</h3>
             <div class="metric-card">
                 <div class="metric"><strong>Buy Signals</strong><br>{signal_summary['buy']}</div>
@@ -302,7 +304,6 @@ class HTMLReportGenerator:
                 <div class="metric"><strong>Hold/Neutral</strong><br>{signal_summary['hold']}</div>
             </div>
             """
-            html_section = html_section.format(**signal_summary)
             
             html_section += "<h3>Overall Recommendation</h3>"
             if signal_summary["buy"] > signal_summary["sell"]:
@@ -375,7 +376,7 @@ class HTMLReportGenerator:
                     recent_data = historical_data.tail(20)
                     historical_dates = recent_data.index
                     historical_prices = recent_data['Close'].values
-                    future_dates = pd.date_range(start=historical_dates[-1] + pd.Timedelta(days=1), periods=pred_days, freq='D')
+                    future_dates = pd.date_range(start=historical_dates[-1] + pd.Timedelta(days=1), periods=pred_days, freq='D') if pd.api.types.is_datetime64_any_dtype(historical_dates) else pd.date_range(start=pd.Timestamp('2025-06-15') + pd.Timedelta(days=1), periods=pred_days, freq='D')
                     
                     fig = go.Figure()
                     fig.add_trace(go.Scatter(x=historical_dates, y=historical_prices, mode='lines', name='Historical Prices', line=dict(color='blue')))
@@ -383,7 +384,7 @@ class HTMLReportGenerator:
                     fig.update_layout(title='7-Day Price Prediction', xaxis_title='Date', yaxis_title='Price ($)', hovermode='x unified', height=400)
                     chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False})
                     
-                    html_section += """
+                    html_section += f"""
                     <div class="chart-container">
                         {chart_html}
                     </div>
@@ -394,7 +395,6 @@ class HTMLReportGenerator:
                         <div class="metric"><strong>Prediction Volatility</strong><br>{confidence.get('volatility', 0):.2f}%</div>
                     </div>
                     """
-                    html_section = html_section.format(chart_html=chart_html, change_pct=change_pct, predicted_final=predicted_final, confidence=confidence)
                     disclaimer = predictions.get_prediction_disclaimer() if hasattr(predictions, 'get_prediction_disclaimer') else "Predictions are for informational purposes only."
                     html_section += f"<p><em>Disclaimer:</em> {html.escape(disclaimer)}</p>"
                 else:
@@ -411,7 +411,7 @@ class HTMLReportGenerator:
         try:
             summary = advanced_analytics.get_performance_summary() if hasattr(advanced_analytics, 'get_performance_summary') else {}
             if summary:
-                html_section += """
+                html_section += f"""
                 <div class="metric-card">
                     <div class="metric"><strong>Total Stocks</strong><br>{summary.get('total_stocks', 0)}</div>
                     <div class="metric"><strong>Average Change</strong><br>{summary.get('avg_change', 0):.2f}%</div>
@@ -419,7 +419,6 @@ class HTMLReportGenerator:
                     <div class="metric"><strong>Losers</strong><br>{summary.get('losers', 0)}</div>
                 </div>
                 """
-                html_section = html_section.format(**summary)
             
             sector_analysis = advanced_analytics.get_sector_analysis() if hasattr(advanced_analytics, 'get_sector_analysis') else pd.DataFrame()
             if not sector_analysis.empty:
