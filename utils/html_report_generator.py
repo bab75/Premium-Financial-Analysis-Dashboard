@@ -64,27 +64,123 @@ class HTMLReportGenerator:
     def __init__(self):
         self.css_styles = """
             <style>
-                body { font-family: 'Arial', sans-serif; margin: 20px; background-color: #f4f4f9; font-size: 16px; }
-                h1 { color: #2c3e50; text-align: center; font-size: 2.5em; font-weight: 700; }
-                h2, h3, h4 { color: #34495e; font-weight: 600; }
+                body {
+                    font-family: 'Arial', sans-serif;
+                    margin: 20px;
+                    background: linear-gradient(135deg, #e0eafc, #cfdef3);
+                    font-size: 16px;
+                    color: #333;
+                }
+                h1 {
+                    color: #1e3a8a;
+                    text-align: center;
+                    font-size: 2.5em;
+                    font-weight: 700;
+                    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+                    background: linear-gradient(90deg, #1e3a8a, #3b82f6);
+                    -webkit-background-clip: text;
+                    background-clip: text;
+                    color: transparent;
+                }
+                h2, h3, h4 {
+                    color: #1e40af;
+                    font-weight: 600;
+                }
                 h2 { font-size: 1.8em; }
                 h3 { font-size: 1.5em; }
                 h4 { font-size: 1.2em; }
-                .chart-container { margin: 20px 0; padding: 10px; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-                .section { margin: 30px 0; }
-                .metric-card { display: flex; flex-wrap: wrap; gap: 10px; }
-                .metric { background-color: #e8ecef; padding: 10px; border-radius: 5px; flex: 1; min-width: 150px; text-align: center; font-weight: 500; }
-                table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 0.95em; }
-                th { background-color: #f2f2f2; font-weight: 600; }
-                .disclaimer { font-style: italic; color: #7f8c8d; font-size: 0.9em; }
-                .signal-buy { color: #27ae60; font-weight: bold; }
-                .signal-sell { color: #c0392b; font-weight: bold; }
-                .signal-hold { color: #7f8c8d; font-weight: bold; }
-                details { margin: 10px 0; }
-                summary { cursor: pointer; font-weight: 600; color: #2980b9; padding: 5px; background-color: #ecf0f1; border-radius: 4px; }
-                details[open] summary { background-color: #3498db; color: #fff; }
-                details div { padding: 10px; background-color: #fff; border: 1px solid #ddd; border-radius: 4px; }
+                .chart-container {
+                    margin: 20px 0;
+                    padding: 15px;
+                    background: #ffffff;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                    transition: transform 0.3s ease;
+                }
+                .chart-container:hover {
+                    transform: translateY(-5px);
+                }
+                .section {
+                    margin: 30px 0;
+                    background: #fff;
+                    padding: 20px;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+                }
+                .metric-card {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 15px;
+                }
+                .metric {
+                    background: linear-gradient(145deg, #ffffff, #f3f4f6);
+                    padding: 12px;
+                    border-radius: 8px;
+                    flex: 1;
+                    min-width: 150px;
+                    text-align: center;
+                    font-weight: 500;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+                    transition: all 0.3s ease;
+                }
+                .metric:hover {
+                    transform: scale(1.05);
+                    background: linear-gradient(145deg, #f3f4f6, #e5e7eb);
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 10px 0;
+                    background: #fff;
+                }
+                th, td {
+                    border: 1px solid #e5e7eb;
+                    padding: 10px;
+                    text-align: left;
+                    font-size: 0.95em;
+                }
+                th {
+                    background: linear-gradient(90deg, #1e3a8a, #3b82f6);
+                    color: #fff;
+                    font-weight: 600;
+                }
+                .disclaimer {
+                    font-style: italic;
+                    color: #64748b;
+                    font-size: 0.9em;
+                }
+                .signal-buy { color: #10b981; font-weight: bold; }
+                .signal-sell { color: #ef4444; font-weight: bold; }
+                .signal-hold { color: #64748b; font-weight: bold; }
+                details {
+                    margin: 10px 0;
+                    background: #fff;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+                }
+                summary {
+                    cursor: pointer;
+                    font-weight: 600;
+                    color: #1e40af;
+                    padding: 10px;
+                    background: linear-gradient(90deg, #e0eafc, #cfdef3);
+                    border-radius: 8px 8px 0 0;
+                    transition: all 0.3s ease;
+                }
+                summary:hover {
+                    background: linear-gradient(90deg, #cfdef3, #e0eafc);
+                    color: #1e3a8a;
+                }
+                details[open] summary {
+                    background: linear-gradient(90deg, #1e3a8a, #3b82f6);
+                    color: #fff;
+                    border-radius: 8px 8px 0 0;
+                }
+                details div {
+                    padding: 15px;
+                    background: #ffffff;
+                    border-radius: 0 0 8px 8px;
+                }
             </style>
         """
         self.js_script = """
@@ -339,8 +435,6 @@ class HTMLReportGenerator:
                         <p><strong>Description:</strong> {html.escape(strategy.get('description', 'N/A'))}</p>
                     """
                 html_section += "</div></details>"
-            else:
-                html_section += "<p>No trading strategies available.</p>"
             
             risk_metrics = analytics.calculate_risk_metrics() if hasattr(analytics, 'calculate_risk_metrics') else {}
             if risk_metrics:
@@ -400,7 +494,7 @@ class HTMLReportGenerator:
                     current_price = historical_data['Close'].iloc[-1] if 'Close' in historical_data.columns else 0
                     predicted_final = pred_prices[-1] if pred_prices else current_price
                     change_pct = ((predicted_final - current_price) / current_price) * 100 if current_price != 0 else 0
-                    confidence = predictions.calculate_prediction_confidence(method=method) if hasattr(predictions, 'calculate_prediction_confidence') else {}
+                    confidence = predictions.calculate_prediction_confidence() if hasattr(predictions, 'calculate_prediction_confidence') else {}
                     
                     future_dates = pd.date_range(start=historical_dates[-1] + pd.Timedelta(days=1), periods=pred_days, freq='D') if pd.api.types.is_datetime64_any_dtype(historical_dates) else pd.date_range(start=pd.Timestamp('2025-06-15') + pd.Timedelta(days=1), periods=pred_days, freq='D')
                     
