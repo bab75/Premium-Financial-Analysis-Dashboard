@@ -78,7 +78,7 @@ class HTMLReportGenerator:
         </script>
         """
 
-    def generate_comprehensive_Report(self, 
+    def generate_comprehensive_report(self, 
                                     stock_symbol: str,
                                     historical_data: pd.DataFrame,
                                     tech_indicators,
@@ -199,15 +199,17 @@ class HTMLReportGenerator:
                             </div>
             """
 
-        # Add data summary and footer
-        html_content += f"""
-                            {not historical_data.empty and f"""
+        # Conditionally add data summary section
+        if not historical_data.empty:
+            html_content += f"""
                             <div className="mb-8 bg-white p-6 rounded-lg shadow-sm">
                                 <h2 className="text-2xl font-semibold text-primary mb-4">Data Summary</h2>
                                 {self._generate_data_summary(historical_data)}
                             </div>
-                            """}
+            """
 
+        # Add footer
+        html_content += f"""
                             <div className="text-sm italic text-neutral">
                                 <p><strong>Disclaimer:</strong> This report is for informational purposes only and does not constitute financial advice.</p>
                                 <p>Data analysis period: {historical_data.index[0].strftime('%Y-%m-%d') if not historical_data.empty else 'N/A'} to {historical_data.index[-1].strftime('%Y-%m-%d') if not historical_data.empty else 'N/A'}</p>
