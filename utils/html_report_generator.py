@@ -78,7 +78,7 @@ class HTMLReportGenerator:
         </script>
         """
 
-    def generate_comprehensive_report(self, 
+    def generate_comprehensive_Report(self, 
                                     stock_symbol: str,
                                     historical_data: pd.DataFrame,
                                     tech_indicators,
@@ -104,6 +104,7 @@ class HTMLReportGenerator:
         # Save chart data to JSON files
         chart_files = self._save_chart_data(additional_figures, historical_data, predictions, report_type)
         
+        # Initialize HTML content
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -178,21 +179,28 @@ class HTMLReportGenerator:
                                 <h2 className="text-2xl font-semibold text-primary mb-4">Trading Insights</h2>
                                 {self._generate_trading_insights(tech_indicators, analytics)}
                             </div>
+        """
 
-                            {predictions is not None and len(historical_data) > 50 and report_type in ["full", "predictions"] and f"""
+        # Conditionally add predictions section
+        if predictions is not None and len(historical_data) > 50 and report_type in ["full", "predictions"]:
+            html_content += f"""
                             <div className="mb-8 bg-white p-6 rounded-lg shadow-sm">
                                 <h2 className="text-2xl font-semibold text-primary mb-4">Price Predictions</h2>
                                 {self._generate_price_predictions(historical_data, predictions, chart_files.get('predictions', {}))}
                             </div>
-                            """}
+            """
 
-                            {advanced_analytics is not None and report_type in ["full", "advanced"] and f"""
+        # Conditionally add advanced analytics section
+        if advanced_analytics is not None and report_type in ["full", "advanced"]:
+            html_content += f"""
                             <div className="mb-8 bg-white p-6 rounded-lg shadow-sm">
                                 <h2 className="text-2xl font-semibold text-primary mb-4">Comparative Analysis</h2>
                                 {self._generate_comparative_analysis(advanced_analytics)}
                             </div>
-                            """}
+            """
 
+        # Add data summary and footer
+        html_content += f"""
                             {not historical_data.empty and f"""
                             <div className="mb-8 bg-white p-6 rounded-lg shadow-sm">
                                 <h2 className="text-2xl font-semibold text-primary mb-4">Data Summary</h2>
