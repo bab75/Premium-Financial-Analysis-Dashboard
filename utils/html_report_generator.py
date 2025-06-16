@@ -310,7 +310,7 @@ class HTMLReportGenerator:
         return html_section
 
     def _generate_visualizations(self, additional_figures: Dict) -> str:
-        """Generate advanced visualizations section with optimized size."""
+        """Generate advanced visualizations section with optimized size and error handling."""
         html_section = "<p>Interactive charts for advanced analysis.</p>"
         try:
             chart_mappings = [
@@ -335,11 +335,17 @@ class HTMLReportGenerator:
                 ('macd_chart', 'MACD Chart', 'macd-chart'),
                 ('bollinger_bands', 'Bollinger Bands', 'bb-chart'),
             ]
+            colors = ['#1e90ff', '#ff4500', '#32cd32', '#ff69b4', '#ffd700', '#adff2f', '#ff8c00', '#00ced1', '#ba55d3', '#ff1493']
             for key, title, chart_id in chart_mappings:
                 if key in additional_figures and additional_figures[key]:
                     fig = additional_figures[key]
                     # Optimize chart size
                     fig.update_layout(height=300, width=600, margin=dict(l=40, r=40, t=40, b=40))
+                    # Apply colors based on chart type
+                    if isinstance(fig.data[0], go.Pie):
+                        fig.update_traces(marker=dict(colors=colors[:len(fig.data[0].labels)] if len(fig.data[0].labels) <= len(colors) else colors))
+                    elif isinstance(fig.data[0], go.Bar):
+                        fig.update_traces(marker_color=colors[:len(fig.data[0].x)] if len(fig.data[0].x) <= len(colors) else colors)
                     chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False, 'responsive': True})
                     html_section += f"""
                     <details>
