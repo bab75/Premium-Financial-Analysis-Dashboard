@@ -38,10 +38,11 @@ class HTMLReportGenerator:
                 data = data.set_index('Date').rename_axis('Datetime')
             if not isinstance(data.index, pd.DatetimeIndex):
                 data = data.reset_index(drop=True)
-                data['Datetime'] = pd.date_range(start='2020-01-01', periods=len(data), freq='D')
+                if 'Datetime' not in data.columns:
+                    data['Datetime'] = pd.date_range(start='2020-01-01', periods=len(data), freq='D')
             data['Datetime'] = pd.to_datetime(data['Datetime'], errors='coerce')
             data = data.dropna(subset=['Datetime'])
-            return data
+            return data.set_index('Datetime')
         except Exception as e:
             logging.error(f"Data cleaning failed: {str(e)}")
             return data.reset_index(drop=True)
@@ -83,7 +84,8 @@ class HTMLReportGenerator:
         logging.info(f"Generating report for {stock_symbol}, report_type: {report_type}")
         
         historical_data = self._clean_dataframe(historical_data)
-        
+        logging.debug(f"Cleaned historical_data index: {historical_data.index}")
+
         local_tz = pytz.timezone('America/New_York')  # EDT timezone
         timestamp = datetime.now(local_tz).strftime("%Y-%m-%d %H:%M:%S %Z")
         
@@ -139,7 +141,7 @@ class HTMLReportGenerator:
         """
         
         if predictions is not None and report_type in ["full", "predictions"]:
-            html_content += """
+            html_content += f"""
             <div class="section">
                 <h2>Price Predictions</h2>
                 {self._generate_prediction_charts_section(historical_data)}
@@ -147,7 +149,7 @@ class HTMLReportGenerator:
             """
         
         if visualizations is not None and report_type in ["full", "advanced"]:
-            html_content += """
+            html_content += f"""
             <div class="section">
                 <h2>3D Visualizations</h2>
                 {self._generate_3d_charts_section(visualizations)}
@@ -155,7 +157,7 @@ class HTMLReportGenerator:
             """
         
         if advanced_analytics is not None and report_type in ["full", "advanced"]:
-            html_content += """
+            html_content += f"""
             <div class="section">
                 <h2>Advanced Analytics</h2>
                 {self._generate_advanced_analytics_section(advanced_analytics)}
