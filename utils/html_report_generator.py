@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 import base64
 import html
 import logging
-import numpy as np  # Added missing import
+import numpy as np
 
 logging.basicConfig(level=logging.INFO)
 
@@ -64,20 +64,27 @@ class HTMLReportGenerator:
     def __init__(self):
         self.css_styles = """
             <style>
-                body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; }
-                h1 { color: #2c3e50; text-align: center; }
-                h2, h3, h4 { color: #34495e; }
+                body { font-family: 'Arial', sans-serif; margin: 20px; background-color: #f4f4f9; font-size: 16px; }
+                h1 { color: #2c3e50; text-align: center; font-size: 2.5em; font-weight: 700; }
+                h2, h3, h4 { color: #34495e; font-weight: 600; }
+                h2 { font-size: 1.8em; }
+                h3 { font-size: 1.5em; }
+                h4 { font-size: 1.2em; }
                 .chart-container { margin: 20px 0; padding: 10px; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
                 .section { margin: 30px 0; }
                 .metric-card { display: flex; flex-wrap: wrap; gap: 10px; }
-                .metric { background-color: #e8ecef; padding: 10px; border-radius: 5px; flex: 1; min-width: 150px; text-align: center; }
+                .metric { background-color: #e8ecef; padding: 10px; border-radius: 5px; flex: 1; min-width: 150px; text-align: center; font-weight: 500; }
                 table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                th { background-color: #f2f2f2; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 0.95em; }
+                th { background-color: #f2f2f2; font-weight: 600; }
                 .disclaimer { font-style: italic; color: #7f8c8d; font-size: 0.9em; }
                 .signal-buy { color: #27ae60; font-weight: bold; }
                 .signal-sell { color: #c0392b; font-weight: bold; }
                 .signal-hold { color: #7f8c8d; font-weight: bold; }
+                details { margin: 10px 0; }
+                summary { cursor: pointer; font-weight: 600; color: #2980b9; padding: 5px; background-color: #ecf0f1; border-radius: 4px; }
+                details[open] summary { background-color: #3498db; color: #fff; }
+                details div { padding: 10px; background-color: #fff; border: 1px solid #ddd; border-radius: 4px; }
             </style>
         """
         self.js_script = """
@@ -186,7 +193,6 @@ class HTMLReportGenerator:
         html_section = ""
         try:
             if not data.empty:
-                # Use the index directly, which should be a DatetimeIndex
                 start_date = data.index[0].strftime('%Y-%m-%d')
                 end_date = data.index[-1].strftime('%Y-%m-%d')
                 current_price = data['Close'].iloc[-1] if 'Close' in data.columns else 0
@@ -237,10 +243,12 @@ class HTMLReportGenerator:
                 if key in additional_figures and additional_figures[key]:
                     chart_html = pio.to_html(additional_figures[key], full_html=False, config={'displayModeBar': False})
                     html_section += f"""
-                    <div class="chart-container">
-                        <h3>{html.escape(title)}</h3>
-                        {chart_html}
-                    </div>
+                    <details>
+                        <summary>{html.escape(title)}</summary>
+                        <div class="chart-container">
+                            {chart_html}
+                        </div>
+                    </details>
                     """
         except Exception as e:
             html_section += f"<p>Error generating visualizations: {html.escape(str(e))}</p>"
@@ -317,32 +325,42 @@ class HTMLReportGenerator:
             
             strategies = analytics.generate_trading_strategies(trading_signals) if hasattr(analytics, 'generate_trading_strategies') else []
             if strategies:
-                html_section += "<h3>Recommended Trading Strategies</h3>"
+                html_section += """
+                <details>
+                    <summary>Recommended Trading Strategies</summary>
+                    <div>
+                """
                 for i, strategy in enumerate(strategies):
                     html_section += f"""
-                    <div class="section">
                         <h4>Strategy {i+1}: {html.escape(strategy.get('name', 'Unknown'))}</h4>
                         <p><strong>Type:</strong> {html.escape(strategy.get('type', 'N/A'))}</p>
                         <p><strong>Risk Level:</strong> {html.escape(strategy.get('risk_level', 'N/A'))}</p>
                         <p><strong>Time Horizon:</strong> {html.escape(strategy.get('time_horizon', 'N/A'))}</p>
                         <p><strong>Description:</strong> {html.escape(strategy.get('description', 'N/A'))}</p>
-                    </div>
                     """
+                html_section += "</div></details>"
             else:
                 html_section += "<p>No trading strategies available.</p>"
             
             risk_metrics = analytics.calculate_risk_metrics() if hasattr(analytics, 'calculate_risk_metrics') else {}
             if risk_metrics:
-                html_section += "<h3>Risk Metrics</h3>"
-                html_section += '<div class="metric-card">'
+                html_section += """
+                <details>
+                    <summary>Risk Metrics</summary>
+                    <div class="metric-card">
+                """
                 for metric, value in risk_metrics.items():
                     value_str = f"{value:.2f}" if isinstance(value, (int, float)) else str(value)
                     html_section += f'<div class="metric"><strong>{html.escape(metric.replace("_", " ").title())}:</strong><br>{html.escape(value_str)}</div>'
-                html_section += '</div>'
+                html_section += "</div></details>"
             
             patterns = analytics.analyze_patterns() if hasattr(analytics, 'analyze_patterns') else {}
             if patterns:
-                html_section += "<h3>Market Patterns Analysis</h3>"
+                html_section += """
+                <details>
+                    <summary>Market Patterns Analysis</summary>
+                    <div>
+                """
                 if patterns.get('seasonal_patterns'):
                     html_section += "<h4>Seasonal Patterns</h4><ul>"
                     for pattern in patterns['seasonal_patterns']:
@@ -357,61 +375,67 @@ class HTMLReportGenerator:
                     html_section += "</ul>"
                 else:
                     html_section += "<p>No significant volume patterns detected.</p>"
+                html_section += "</div></details>"
         except Exception as e:
             html_section += f"<p>Error generating trading insights: {html.escape(str(e))}</p>"
         return html_section
 
     def _generate_price_predictions(self, historical_data, predictions) -> str:
-        """Generate price predictions section with chart and table."""
+        """Generate price predictions section with chart and table for multiple methods."""
         html_section = ""
         try:
             if len(historical_data) > 50:
                 pred_days = 7
-                pred_prices = predictions.predict_prices(pred_days, method="technical_analysis") if hasattr(predictions, 'predict_prices') else []
-                if not pred_prices or not isinstance(pred_prices, (list, np.ndarray)) or len(pred_prices) != pred_days:
-                    pred_prices = [historical_data['Close'].iloc[-1]] * pred_days  # Fallback to current price as list
-                    print("Warning: Invalid or empty prediction data, using fallback prices")
-                
-                current_price = historical_data['Close'].iloc[-1] if 'Close' in historical_data.columns else 0
-                predicted_final = pred_prices[-1] if pred_prices else current_price
-                change_pct = ((predicted_final - current_price) / current_price) * 100 if current_price != 0 else 0
-                confidence = predictions.calculate_prediction_confidence() if hasattr(predictions, 'calculate_prediction_confidence') else {}
-                
-                # Create prediction chart
+                prediction_methods = ["technical_analysis", "moving_average", "learning_trend"]
                 recent_data = historical_data.tail(20)
                 historical_dates = recent_data.index
                 historical_prices = recent_data['Close'].values if 'Close' in recent_data.columns else np.zeros(20)
-                future_dates = pd.date_range(start=historical_dates[-1] + pd.Timedelta(days=1), periods=pred_days, freq='D') if pd.api.types.is_datetime64_any_dtype(historical_dates) else pd.date_range(start=pd.Timestamp('2025-06-15') + pd.Timedelta(days=1), periods=pred_days, freq='D')
                 
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(x=historical_dates, y=historical_prices, mode='lines', name='Historical Prices', line=dict(color='blue')))
-                fig.add_trace(go.Scatter(x=future_dates, y=pred_prices, mode='lines+markers', name='Predicted Prices', line=dict(color='red', dash='dash')))
-                fig.update_layout(title='7-Day Price Prediction', xaxis_title='Date', yaxis_title='Price ($)', hovermode='x unified', height=400)
-                chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False})
-                
-                # Create prediction table
-                html_section += f"""
-                <div class="chart-container">
-                    {chart_html}
-                </div>
-                <h3>Predicted Prices Table</h3>
-                <table>
-                    <tr><th>Date</th><th>Predicted Price ($)</th></tr>
-                """
-                for date, price in zip(future_dates, pred_prices):
-                    html_section += f"<tr><td>{date.strftime('%Y-%m-%d')}</td><td>{float(price):.2f}</td></tr>"
-                html_section += "</table>"
-                
-                html_section += f"""
-                <div class="metric-card">
-                    <div class="metric"><strong>Predicted Change</strong><br>{change_pct:.2f}%</div>
-                    <div class="metric"><strong>Target Price</strong><br>${predicted_final:.2f}</div>
-                    <div class="metric"><strong>Confidence Score</strong><br>{confidence.get('score', 0):.1f}/10</div>
-                    <div class="metric"><strong>Prediction Volatility</strong><br>{confidence.get('volatility', 0):.2f}%</div>
-                </div>
-                """
-                disclaimer = predictions.get_prediction_disclaimer() if hasattr(predictions, 'get_prediction_disclaimer') else "Predictions are for informational purposes only."
-                html_section += f"<p><em>Disclaimer:</em> {html.escape(disclaimer)}</p>"
+                for method in prediction_methods:
+                    pred_prices = predictions.predict_prices(pred_days, method=method) if hasattr(predictions, 'predict_prices') else []
+                    if not pred_prices or not isinstance(pred_prices, (list, np.ndarray)) or len(pred_prices) != pred_days:
+                        pred_prices = [historical_data['Close'].iloc[-1]] * pred_days
+                        print(f"Warning: Invalid or empty prediction data for {method}, using fallback prices")
+                    
+                    current_price = historical_data['Close'].iloc[-1] if 'Close' in historical_data.columns else 0
+                    predicted_final = pred_prices[-1] if pred_prices else current_price
+                    change_pct = ((predicted_final - current_price) / current_price) * 100 if current_price != 0 else 0
+                    confidence = predictions.calculate_prediction_confidence(method=method) if hasattr(predictions, 'calculate_prediction_confidence') else {}
+                    
+                    future_dates = pd.date_range(start=historical_dates[-1] + pd.Timedelta(days=1), periods=pred_days, freq='D') if pd.api.types.is_datetime64_any_dtype(historical_dates) else pd.date_range(start=pd.Timestamp('2025-06-15') + pd.Timedelta(days=1), periods=pred_days, freq='D')
+                    
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatter(x=historical_dates, y=historical_prices, mode='lines', name='Historical Prices', line=dict(color='blue')))
+                    fig.add_trace(go.Scatter(x=future_dates, y=pred_prices, mode='lines+markers', name=f'Predicted Prices ({method.replace("_", " ").title()})', line=dict(color='red' if method == "technical_analysis" else 'green' if method == "moving_average" else 'purple', dash='dash')))
+                    fig.update_layout(title=f'7-Day Price Prediction ({method.replace("_", " ").title()})', xaxis_title='Date', yaxis_title='Price ($)', hovermode='x unified', height=400)
+                    chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False})
+                    
+                    html_section += f"""
+                    <details>
+                        <summary>Price Prediction: {method.replace("_", " ").title()}</summary>
+                        <div>
+                            <div class="chart-container">
+                                {chart_html}
+                            </div>
+                            <h3>Predicted Prices Table</h3>
+                            <table>
+                                <tr><th>Date</th><th>Predicted Price ($)</th></tr>
+                            """
+                    for date, price in zip(future_dates, pred_prices):
+                        html_section += f"<tr><td>{date.strftime('%Y-%m-%d')}</td><td>{float(price):.2f}</td></tr>"
+                    html_section += "</table>"
+                    
+                    html_section += f"""
+                            <div class="metric-card">
+                                <div class="metric"><strong>Predicted Change</strong><br>{change_pct:.2f}%</div>
+                                <div class="metric"><strong>Target Price</strong><br>${predicted_final:.2f}</div>
+                                <div class="metric"><strong>Confidence Score</strong><br>{confidence.get('score', 0):.1f}/10</div>
+                                <div class="metric"><strong>Prediction Volatility</strong><br>{confidence.get('volatility', 0):.2f}%</div>
+                            </div>
+                            <p><em>Disclaimer:</em> Predictions are for informational purposes only.</p>
+                        </div>
+                    </details>
+                    """
             else:
                 html_section += "<p>Insufficient data for predictions (minimum 50 data points).</p>"
         except Exception as e:
@@ -435,8 +459,14 @@ class HTMLReportGenerator:
             
             sector_analysis = advanced_analytics.get_sector_analysis() if hasattr(advanced_analytics, 'get_sector_analysis') else pd.DataFrame()
             if not sector_analysis.empty:
-                html_section += "<h3>Sector Performance</h3>"
+                html_section += """
+                <details>
+                    <summary>Sector Performance</summary>
+                    <div>
+                        <table>
+                """
                 html_section += sector_analysis.to_html(index=False, border=1, classes="table", escape=False)
+                html_section += "</table></div></details>"
         except Exception as e:
             html_section += f"<p>Error generating comparative analysis: {html.escape(str(e))}</p>"
         return html_section
@@ -448,12 +478,15 @@ class HTMLReportGenerator:
             if not data.empty:
                 summary_stats = data['Close'].describe()
                 html_section += """
-                <table>
-                    <tr><th>Metric</th><th>Value</th></tr>
+                <details>
+                    <summary>Data Summary</summary>
+                    <div>
+                        <table>
+                            <tr><th>Metric</th><th>Value</th></tr>
                 """
                 for stat, value in summary_stats.items():
                     html_section += f"<tr><td>{html.escape(stat.capitalize())}</td><td>{value:.2f}</td></tr>"
-                html_section += "</table>"
+                html_section += "</table></div></details>"
             else:
                 html_section += "<p>No data available for summary.</p>"
         except Exception as e:
