@@ -174,7 +174,7 @@ def data_upload_section():
                     if missing_cols:
                         st.error(f"Missing required columns: {', '.join(missing_cols)}")
                     else:
-                        historical_data = historical_data.rename(columns={'Date': 'Datetime'})
+                        #historical_data = historical_data.rename(columns={'Date': 'Datetime'})
                         historical_data['Datetime'] = pd.to_datetime(historical_data['Datetime'])
                         historical_data = historical_data.set_index('Datetime')
                         if 'Adj Close' not in historical_data.columns:
