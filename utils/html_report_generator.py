@@ -64,81 +64,93 @@ class HTMLReportGenerator:
     def __init__(self):
         self.css_styles = """
             <style>
+                @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css');
+                @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
                 body {
-                    font-family: 'Arial', 'Helvetica', sans-serif;
-                    margin: 20px;
-                    background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
-                    font-size: 16px;
-                    color: #2d3748;
+                    font-family: 'Roboto', sans-serif;
+                    margin: 0;
+                    padding: 20px;
+                    background: linear-gradient(135deg, #e6f0fa, #d0e1f9);
+                    color: #1a202c;
                     line-height: 1.6;
+                    overflow-x: hidden;
+                }
+                .header {
+                    position: relative;
+                    text-align: center;
+                    padding: 40px 20px;
+                    background: linear-gradient(180deg, #2b6cb0, #63b3ed);
+                    border-radius: 15px;
+                    margin-bottom: 30px;
+                    background-attachment: fixed;
                 }
                 h1 {
-                    color: #2b6cb0;
-                    text-align: center;
-                    font-size: 2.5em;
+                    color: #ffffff;
+                    font-size: 2.8em;
                     font-weight: 700;
-                    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1);
-                    background: linear-gradient(90deg, #2b6cb0, #63b3ed);
-                    -webkit-background-clip: text;
-                    background-clip: text;
-                    color: transparent;
-                    margin-bottom: 20px;
-                    animation: fadeIn 1s ease-in;
+                    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+                    margin: 0;
+                    animation: slideIn 1.5s ease-out;
                 }
-                @keyframes fadeIn {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
+                @keyframes slideIn {
+                    from { transform: translateY(-50px); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
                 }
                 h2, h3, h4 {
-                    color: #2c5282;
+                    color: #2d3748;
                     font-weight: 600;
-                    margin-top: 20px;
+                    margin-top: 25px;
                 }
-                h2 { font-size: 1.8em; }
-                h3 { font-size: 1.5em; }
-                h4 { font-size: 1.2em; }
+                h2 { font-size: 1.9em; }
+                h3 { font-size: 1.6em; }
+                h4 { font-size: 1.3em; }
                 .section {
-                    margin: 25px 0;
-                    background: #ffffff;
-                    padding: 20px;
-                    border-radius: 10px;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-                    transition: transform 0.3s ease, box-shadow 0.3s ease;
+                    margin: 30px auto;
+                    background: rgba(255, 255, 255, 0.9);
+                    padding: 25px;
+                    border-radius: 15px;
+                    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+                    backdrop-filter: blur(10px);
+                    -webkit-backdrop-filter: blur(10px);
+                    border: 1px solid rgba(255, 255, 255, 0.3);
+                    max-width: 1200px;
+                    transition: transform 0.4s ease, box-shadow 0.4s ease;
                 }
                 .section:hover {
-                    transform: translateY(-3px);
-                    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+                    transform: translateY(-5px);
+                    box-shadow: 0 12px 20px rgba(0, 0, 0, 0.15);
                 }
                 .metric-card {
                     display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-                    gap: 15px;
-                    margin: 15px 0;
+                    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                    gap: 20px;
+                    margin: 20px 0;
                 }
                 .metric {
-                    background: linear-gradient(145deg, #ffffff, #edf2f7);
-                    padding: 12px;
-                    border-radius: 8px;
+                    background: rgba(255, 255, 255, 0.7);
+                    padding: 15px;
+                    border-radius: 10px;
                     text-align: center;
                     font-weight: 500;
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
                     transition: all 0.3s ease;
-                    cursor: default;
+                    backdrop-filter: blur(5px);
                 }
                 .metric:hover {
-                    transform: scale(1.03);
-                    background: linear-gradient(145deg, #edf2f7, #e2e8f0);
+                    transform: scale(1.05);
+                    background: rgba(255, 255, 255, 0.85);
                 }
                 table {
                     width: 100%;
                     border-collapse: collapse;
-                    margin: 10px 0;
-                    background: #fff;
+                    margin: 15px 0;
+                    background: rgba(255, 255, 255, 0.9);
                     font-size: 0.95em;
                 }
                 th, td {
                     border: 1px solid #e2e8f0;
-                    padding: 10px;
+                    padding: 12px;
                     text-align: left;
                 }
                 th {
@@ -151,27 +163,30 @@ class HTMLReportGenerator:
                     color: #4a5568;
                     font-size: 0.9em;
                     margin-top: 20px;
+                    padding: 10px;
+                    background: rgba(255, 255, 255, 0.7);
+                    border-radius: 8px;
                 }
                 .signal-buy { color: #48bb78; font-weight: bold; }
                 .signal-sell { color: #f56565; font-weight: bold; }
                 .signal-hold { color: #718096; font-weight: bold; }
                 details {
-                    margin: 10px 0;
-                    background: #ffffff;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+                    margin: 15px 0;
+                    background: rgba(255, 255, 255, 0.9);
+                    border-radius: 10px;
+                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
                     overflow: hidden;
                 }
                 summary {
                     cursor: pointer;
                     font-weight: 600;
-                    color: #2c5282;
-                    padding: 12px;
-                    background: linear-gradient(90deg, #f0f4f8, #d9e2ec);
+                    color: #2d3748;
+                    padding: 15px;
+                    background: rgba(255, 255, 255, 0.5);
                     transition: all 0.3s ease;
                 }
                 summary:hover {
-                    background: linear-gradient(90deg, #d9e2ec, #f0f4f8);
+                    background: rgba(255, 255, 255, 0.7);
                     color: #2b6cb0;
                 }
                 details[open] summary {
@@ -180,23 +195,53 @@ class HTMLReportGenerator:
                 }
                 details div {
                     padding: 15px;
-                    background: #ffffff;
+                    background: rgba(255, 255, 255, 0.9);
                 }
                 .chart-container {
-                    margin: 15px 0;
-                    padding: 10px;
-                    background: #ffffff;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+                    margin: 20px auto;
+                    padding: 15px;
+                    background: rgba(255, 255, 255, 0.95);
+                    border-radius: 12px;
+                    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+                    border: 2px solid #e2e8f0;
+                    width: 700px;
+                    height: 500px;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
                     transition: transform 0.3s ease;
                 }
                 .chart-container:hover {
-                    transform: translateY(-2px);
+                    transform: translateY(-3px);
+                }
+                .progress-bar {
+                    width: 100%;
+                    height: 5px;
+                    background: #e2e8f0;
+                    margin: 10px 0;
+                    border-radius: 5px;
+                    overflow: hidden;
+                }
+                .progress {
+                    height: 100%;
+                    background: linear-gradient(90deg, #48bb78, #2b6cb0);
+                    width: 0;
+                    animation: progressAnimation 2s ease-out forwards;
+                }
+                @keyframes progressAnimation {
+                    from { width: 0; }
+                    to { width: 100%; }
                 }
             </style>
         """
         self.js_script = """
             <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+            <script>
+                document.addEventListener('DOMContentLoaded', () => {
+                    const progress = document.querySelector('.progress');
+                    setTimeout(() => progress.style.width = '100%', 50);
+                });
+            </script>
         """
 
     def generate_comprehensive_report(self, 
@@ -226,7 +271,7 @@ class HTMLReportGenerator:
             <html>
             <head><title>Financial Analysis Report - {stock_symbol}</title>{self.css_styles}{self.js_script}</head>
             <body>
-                <h1>Financial Analysis Report: {stock_symbol}</h1>
+                <div class="header"><h1>Financial Analysis Report: {stock_symbol}</h1></div>
                 <p style="text-align: center;">Generated on: {timestamp}</p>
                 <div class="section"><p>No historical data available to generate the report.</p></div>
             </body>
@@ -241,22 +286,26 @@ class HTMLReportGenerator:
             {self.js_script}
         </head>
         <body>
-            <h1>Financial Analysis Report: {stock_symbol}</h1>
+            <div class="header"><h1>Financial Analysis Report: {stock_symbol}</h1></div>
             <p style="text-align: center;">Generated on: {timestamp}</p>
             <div class="section">
                 <h2>Overview</h2>
+                <div class="progress-bar"><div class="progress"></div></div>
                 {self._generate_overview(historical_data)}
             </div>
             <div class="section">
                 <h2>Advanced Visualizations</h2>
+                <div class="progress-bar"><div class="progress"></div></div>
                 {self._generate_visualizations(additional_figures)}
             </div>
             <div class="section">
                 <h2>Technical Indicators</h2>
+                <div class="progress-bar"><div class="progress"></div></div>
                 {self._generate_technical_indicators(tech_indicators)}
             </div>
             <div class="section">
                 <h2>Trading Insights</h2>
+                <div class="progress-bar"><div class="progress"></div></div>
                 {self._generate_trading_insights(tech_indicators, analytics)}
             </div>
         """
@@ -265,6 +314,7 @@ class HTMLReportGenerator:
             html_content += f"""
             <div class="section">
                 <h2>Price Predictions</h2>
+                <div class="progress-bar"><div class="progress"></div></div>
                 {self._generate_price_predictions(historical_data, predictions)}
             </div>
             """
@@ -273,6 +323,7 @@ class HTMLReportGenerator:
             html_content += f"""
             <div class="section">
                 <h2>Comparative Analysis</h2>
+                <div class="progress-bar"><div class="progress"></div></div>
                 {self._generate_comparative_analysis(advanced_analytics)}
             </div>
             """
@@ -281,6 +332,7 @@ class HTMLReportGenerator:
             html_content += f"""
             <div class="section">
                 <h2>Data Summary</h2>
+                <div class="progress-bar"><div class="progress"></div></div>
                 {self._generate_data_summary(historical_data)}
             </div>
             """
@@ -351,20 +403,22 @@ class HTMLReportGenerator:
             for key, title, chart_id in chart_mappings:
                 if key in additional_figures and additional_figures[key]:
                     fig = additional_figures[key]
-                    # Optimize chart size
-                    fig.update_layout(height=300, width=500, margin=dict(l=30, r=30, t=30, b=30), hovermode='closest')
-                    # Apply colors based on chart type
+                    # Optimize and size up charts
+                    fig.update_layout(height=500, width=700, margin=dict(l=40, r=40, t=40, b=40), hovermode='closest')
+                    # Apply styling based on chart type
                     if fig.data and hasattr(fig.data[0], 'type'):
                         if fig.data[0].type == 'pie':
                             fig.update_traces(marker=dict(colors=colors[:len(fig.data[0].labels)] if len(fig.data[0].labels) <= len(colors) else colors))
                         elif fig.data[0].type == 'bar':
                             fig.update_traces(marker_color=colors[0] if len(fig.data) == 1 else [colors[i % len(colors)] for i in range(len(fig.data[0].x))])
-                        elif fig.data[0].type in ['scatter', 'candlestick']:
+                        elif fig.data[0].type == 'candlestick':
+                            fig.update_traces(increasing_line=dict(width=1.5), decreasing_line=dict(width=1.5))
+                        elif fig.data[0].type in ['scatter', 'line']:
                             fig.update_traces(line_color=colors[0], marker_color=colors[0])
                     chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False, 'responsive': True})
                     html_section += f"""
                     <details>
-                        <summary>{html.escape(title)}</summary>
+                        <summary>{html.escape(title)} <i class='fas fa-chart-line'></i></summary>
                         <div class="chart-container">
                             {chart_html}
                         </div>
@@ -428,6 +482,7 @@ class HTMLReportGenerator:
             
             html_section += f"""
             <h3>Signal Summary</h3>
+            <div class="progress-bar"><div class="progress"></div></div>
             <div class="metric-card">
                 <div class="metric"><strong>Buy Signals</strong><br>{signal_summary['buy']}</div>
                 <div class="metric"><strong>Sell Signals</strong><br>{signal_summary['sell']}</div>
@@ -447,7 +502,7 @@ class HTMLReportGenerator:
             if strategies:
                 html_section += """
                 <details>
-                    <summary>Recommended Trading Strategies</summary>
+                    <summary>Recommended Trading Strategies <i class='fas fa-lightbulb'></i></summary>
                     <div>
                 """
                 for i, strategy in enumerate(strategies):
@@ -464,7 +519,7 @@ class HTMLReportGenerator:
             if risk_metrics:
                 html_section += """
                 <details>
-                    <summary>Risk Metrics</summary>
+                    <summary>Risk Metrics <i class='fas fa-shield-alt'></i></summary>
                     <div class="metric-card">
                 """
                 for metric, value in risk_metrics.items():
@@ -476,7 +531,7 @@ class HTMLReportGenerator:
             if patterns:
                 html_section += """
                 <details>
-                    <summary>Market Patterns Analysis</summary>
+                    <summary>Market Patterns Analysis <i class='fas fa-chart-pie'></i></summary>
                     <div>
                 """
                 if patterns.get('seasonal_patterns'):
@@ -526,12 +581,12 @@ class HTMLReportGenerator:
                     fig = go.Figure()
                     fig.add_trace(go.Scatter(x=historical_dates, y=historical_prices, mode='lines', name='Historical Prices', line=dict(color='#2b6cb0')))
                     fig.add_trace(go.Scatter(x=future_dates, y=pred_prices, mode='lines+markers', name=f'Predicted Prices ({method.replace("_", " ").title()})', line=dict(color='#48bb78' if method == "technical_analysis" else '#f56565' if method == "moving_average" else '#ecc94b', dash='dash')))
-                    fig.update_layout(title=f'7-Day Price Prediction ({method.replace("_", " ").title()})', xaxis_title='Date', yaxis_title='Price ($)', hovermode='closest', height=300, width=500, margin=dict(l=30, r=30, t=30, b=30))
+                    fig.update_layout(title=f'7-Day Price Prediction ({method.replace("_", " ").title()})', xaxis_title='Date', yaxis_title='Price ($)', hovermode='closest', height=500, width=700, margin=dict(l=40, r=40, t=40, b=40))
                     chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False, 'responsive': True})
                     
                     html_section += f"""
                     <details>
-                        <summary>Price Prediction: {method.replace("_", " ").title()}</summary>
+                        <summary>Price Prediction: {method.replace("_", " ").title()} <i class='fas fa-chart-line'></i></summary>
                         <div>
                             <div class="chart-container">
                                 {chart_html}
@@ -580,7 +635,7 @@ class HTMLReportGenerator:
             if not sector_analysis.empty:
                 html_section += """
                 <details>
-                    <summary>Sector Performance</summary>
+                    <summary>Sector Performance <i class='fas fa-pie-chart'></i></summary>
                     <div>
                         <table>
                 """
@@ -598,7 +653,7 @@ class HTMLReportGenerator:
                 summary_stats = data['Close'].describe()
                 html_section += """
                 <details>
-                    <summary>Data Summary</summary>
+                    <summary>Data Summary <i class='fas fa-table'></i></summary>
                     <div>
                         <table>
                             <tr><th>Metric</th><th>Value</th></tr>
