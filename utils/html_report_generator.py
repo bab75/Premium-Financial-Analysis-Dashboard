@@ -26,7 +26,7 @@ class HTMLReportGenerator:
         data = data.copy()
         try:
             print("Input DataFrame columns:", data.columns.tolist())
-            print("Input DataFrame index:", data.index.name)
+            print("Input DataFrame index type:", type(data.index).__name__)
             if data.index.name == 'Datetime' or 'Datetime' in data.columns:
                 data = data.reset_index()
                 if 'Datetime' in data.columns:
@@ -38,7 +38,8 @@ class HTMLReportGenerator:
                 for col in ['index', 'level_0']:
                     if col in data.columns:
                         data = data.drop(columns=col)
-            if 'Datetime' not in data.columns:
+            if 'Datetime' not in data.columns or not pd.api.types.is_datetime64_any_dtype(data['Datetime']):
+                print("Creating fallback Datetime index due to missing or invalid Datetime column")
                 data['Datetime'] = pd.date_range(start='2020-01-01', periods=len(data), freq='D')
             data['Datetime'] = pd.to_datetime(data['Datetime'], errors='coerce')
             if data['Datetime'].isna().any():
@@ -50,9 +51,9 @@ class HTMLReportGenerator:
                 if col not in data.columns:
                     data[col] = 0
             data = data.sort_values('Datetime')
-            print("Cleaned DataFrame columns:", data.columns.tolist())
-            print("Cleaned DataFrame index:", data.index.name)
-            return data.set_index('Datetime')
+            data = data.set_index('Datetime')
+            print("Cleaned DataFrame index type:", type(data.index).__name__)
+            return data
         except Exception as e:
             logging.error(f"Data cleaning failed: {str(e)}")
             return data.reset_index(drop=True)
@@ -182,8 +183,8 @@ class HTMLReportGenerator:
         html_section = ""
         try:
             if not data.empty:
-                start_date = data.index[0].strftime('%Y-%m-%d')
-                end_date = data.index[-1].strftime('%Y-%m-%d')
+                start_date = data.index[0].strftime('%Y-%m-%d') if hasattr(data.index[0], 'strftime') else str(data.index[0])[:10]
+                end_date = data.index[-1].strftime('%Y-%m-%d') if hasattr(data.index[-1], 'strftime') else str(data.index[-1])[:10]
                 current_price = data['Close'].iloc[-1]
                 total_return = ((current_price / data['Close'].iloc[0]) - 1) * 100 if len(data) > 1 else 0
                 volatility = data['Close'].pct_change().std() * (252 ** 0.5) * 100 if len(data) > 1 else 0
@@ -358,7 +359,7 @@ class HTMLReportGenerator:
         return html_section
 
     def _generate_price_predictions(self, historical_data, predictions) -> str:
-        """Generate price predictions section."""
+        """Generate price predictions section with chart."""
         html_section = ""
         try:
             if len(historical_data) > 50:
@@ -370,7 +371,22 @@ class HTMLReportGenerator:
                     change_pct = ((predicted_final - current_price) / current_price) * 100
                     confidence = predictions.calculate_prediction_confidence() if hasattr(predictions, 'calculate_prediction_confidence') else {}
                     
+                    # Create prediction chart
+                    recent_data = historical_data.tail(20)
+                    historical_dates = recent_data.index
+                    historical_prices = recent_data['Close'].values
+                    future_dates = pd.date_range(start=historical_dates[-1] + pd.Timedelta(days=1), periods=pred_days, freq='D')
+                    
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatter(x=historical_dates, y=historical_prices, mode='lines', name='Historical Prices', line=dict(color='blue')))
+                    fig.add_trace(go.Scatter(x=future_dates, y=pred_prices, mode='lines+markers', name='Predicted Prices', line=dict(color='red', dash='dash')))
+                    fig.update_layout(title='7-Day Price Prediction', xaxis_title='Date', yaxis_title='Price ($)', hovermode='x unified', height=400)
+                    chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False})
+                    
                     html_section += """
+                    <div class="chart-container">
+                        {chart_html}
+                    </div>
                     <div class="metric-card">
                         <div class="metric"><strong>Predicted Change</strong><br>{change_pct:.2f}%</div>
                         <div class="metric"><strong>Target Price</strong><br>${predicted_final:.2f}</div>
@@ -378,7 +394,7 @@ class HTMLReportGenerator:
                         <div class="metric"><strong>Prediction Volatility</strong><br>{confidence.get('volatility', 0):.2f}%</div>
                     </div>
                     """
-                    html_section = html_section.format(change_pct=change_pct, predicted_final=predicted_final, confidence=confidence)
+                    html_section = html_section.format(chart_html=chart_html, change_pct=change_pct, predicted_final=predicted_final, confidence=confidence)
                     disclaimer = predictions.get_prediction_disclaimer() if hasattr(predictions, 'get_prediction_disclaimer') else "Predictions are for informational purposes only."
                     html_section += f"<p><em>Disclaimer:</em> {html.escape(disclaimer)}</p>"
                 else:
