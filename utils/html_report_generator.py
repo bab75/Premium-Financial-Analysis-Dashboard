@@ -310,7 +310,7 @@ class HTMLReportGenerator:
         return html_section
 
     def _generate_visualizations(self, additional_figures: Dict) -> str:
-        """Generate advanced visualizations section with optimized size."""
+        """Generate advanced visualizations section."""
         html_section = "<p>Interactive charts for advanced analysis.</p>"
         try:
             chart_mappings = [
@@ -337,10 +337,7 @@ class HTMLReportGenerator:
             ]
             for key, title, chart_id in chart_mappings:
                 if key in additional_figures and additional_figures[key]:
-                    fig = additional_figures[key]
-                    # Optimize chart size
-                    fig.update_layout(height=300, width=600, margin=dict(l=40, r=40, t=40, b=40))
-                    chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False, 'responsive': True})
+                    chart_html = pio.to_html(additional_figures[key], full_html=False, config={'displayModeBar': False})
                     html_section += f"""
                     <details>
                         <summary>{html.escape(title)}</summary>
@@ -478,16 +475,15 @@ class HTMLReportGenerator:
         return html_section
 
     def _generate_price_predictions(self, historical_data, predictions) -> str:
-        """Generate price predictions section with optimized chart size."""
+        """Generate price predictions section with chart and table for multiple methods."""
         html_section = ""
         try:
             if len(historical_data) > 50:
                 pred_days = 7
                 prediction_methods = ["technical_analysis", "moving_average", "learning_trend"]
-                # Downsample historical data to reduce size
-                recent_data = historical_data.tail(20).iloc[::2]  # Take every second point
+                recent_data = historical_data.tail(20)
                 historical_dates = recent_data.index
-                historical_prices = recent_data['Close'].values if 'Close' in recent_data.columns else np.zeros(len(recent_data))
+                historical_prices = recent_data['Close'].values if 'Close' in recent_data.columns else np.zeros(20)
                 
                 for method in prediction_methods:
                     pred_prices = predictions.predict_prices(pred_days, method=method) if hasattr(predictions, 'predict_prices') else []
@@ -505,8 +501,8 @@ class HTMLReportGenerator:
                     fig = go.Figure()
                     fig.add_trace(go.Scatter(x=historical_dates, y=historical_prices, mode='lines', name='Historical Prices', line=dict(color='blue')))
                     fig.add_trace(go.Scatter(x=future_dates, y=pred_prices, mode='lines+markers', name=f'Predicted Prices ({method.replace("_", " ").title()})', line=dict(color='red' if method == "technical_analysis" else 'green' if method == "moving_average" else 'purple', dash='dash')))
-                    fig.update_layout(title=f'7-Day Price Prediction ({method.replace("_", " ").title()})', xaxis_title='Date', yaxis_title='Price ($)', hovermode='x unified', height=300, width=600, margin=dict(l=40, r=40, t=40, b=40))
-                    chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False, 'responsive': True})
+                    fig.update_layout(title=f'7-Day Price Prediction ({method.replace("_", " ").title()})', xaxis_title='Date', yaxis_title='Price ($)', hovermode='x unified', height=400)
+                    chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False})
                     
                     html_section += f"""
                     <details>
