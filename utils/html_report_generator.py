@@ -104,6 +104,10 @@ class HTMLReportGenerator:
         # Save chart data to JSON files
         chart_files = self._save_chart_data(additional_figures, historical_data, predictions, report_type)
         
+        # Extract footer dates to avoid nested f-string issues
+        start_date = historical_data.index[0].strftime('%Y-%m-%d') if not historical_data.empty else 'N/A'
+        end_date = historical_data.index[-1].strftime('%Y-%m-%d') if not historical_data.empty else 'N/A'
+
         # Initialize HTML content
         html_content = f"""
         <!DOCTYPE html>
@@ -208,11 +212,11 @@ class HTMLReportGenerator:
                             </div>
             """
 
-        # Add footer
+        # Add footer with extracted dates
         html_content += f"""
                             <div className="text-sm italic text-neutral">
                                 <p><strong>Disclaimer:</strong> This report is for informational purposes only and does not constitute financial advice.</p>
-                                <p>Data analysis period: {historical_data.index[0].strftime('%Y-%m-%d') if not historical_data.empty else 'N/A'} to {historical_data.index[-1].strftime('%Y-%m-%d') if not historical_data.empty else 'N/A'}</p>
+                                <p>Data analysis period: {start_date} to {end_date}</p>
                             </div>
                         </div>
                     );
@@ -408,7 +412,9 @@ class HTMLReportGenerator:
             html_section += "<h3 className='text-xl font-semibold text-primary mb-2'>Overall Recommendation</h3>"
             signal_class = 'text-buy' if signal_summary["buy"] > signal_summary["sell"] else 'text-sell' if signal_summary["sell"] > signal_summary["buy"] else 'text-neutral'
             recommendation = "Bullish Outlook: Consider accumulating or holding positions." if signal_summary["buy"] > signal_summary["sell"] else "Bearish Outlook: Consider reducing positions." if signal_summary["sell"] > signal_summary["buy"] else "Neutral Outlook: Wait for clearer signals."
-            html_section += f"<p className='{{`font-bold ${signal_class}`}}'>{recommendation}</p>"
+            html_section += f"""
+            <p className="font-bold {signal_class}">{recommendation}</p>
+            """
             
             strategies = analytics.generate_trading_strategies(trading_signals) if hasattr(analytics, 'generate_trading_strategies') else []
             if strategies:
