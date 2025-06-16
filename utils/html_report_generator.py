@@ -1,4 +1,3 @@
-
 """
 HTML Report Generator for Financial Analysis
 Creates comprehensive downloadable HTML reports with interactive charts
@@ -55,6 +54,7 @@ class HTMLReportGenerator:
                     data[col] = 0
             data = data.sort_index()
             print("Cleaned DataFrame index type:", type(data.index).__name__)
+            print("Cleaned DataFrame first and last dates:", data.index[0], data.index[-1])
             return data
         except Exception as e:
             logging.error(f"Data cleaning failed: {str(e)}")
@@ -185,12 +185,12 @@ class HTMLReportGenerator:
         html_section = ""
         try:
             if not data.empty:
-                # Use the index directly, which should now be a DatetimeIndex
+                # Use the index directly, which should be a DatetimeIndex
                 start_date = data.index[0].strftime('%Y-%m-%d')
                 end_date = data.index[-1].strftime('%Y-%m-%d')
-                current_price = data['Close'].iloc[-1]
-                total_return = ((current_price / data['Close'].iloc[0]) - 1) * 100 if len(data) > 1 else 0
-                volatility = data['Close'].pct_change().std() * (252 ** 0.5) * 100 if len(data) > 1 else 0
+                current_price = data['Close'].iloc[-1] if 'Close' in data.columns else 0
+                total_return = ((current_price / data['Close'].iloc[0]) - 1) * 100 if len(data) > 1 and 'Close' in data.columns else 0
+                volatility = data['Close'].pct_change().std() * (252 ** 0.5) * 100 if len(data) > 1 and 'Close' in data.columns else 0
                 
                 html_section = f"""
                 <div class="metric-card">
@@ -361,45 +361,56 @@ class HTMLReportGenerator:
         return html_section
 
     def _generate_price_predictions(self, historical_data, predictions) -> str:
-        """Generate price predictions section with chart."""
+        """Generate price predictions section with chart and table."""
         html_section = ""
         try:
             if len(historical_data) > 50:
                 pred_days = 7
                 pred_prices = predictions.predict_prices(pred_days, method="technical_analysis") if hasattr(predictions, 'predict_prices') else []
-                if pred_prices and len(pred_prices) == pred_days:
-                    current_price = historical_data['Close'].iloc[-1]
-                    predicted_final = pred_prices[-1]
-                    change_pct = ((predicted_final - current_price) / current_price) * 100
-                    confidence = predictions.calculate_prediction_confidence() if hasattr(predictions, 'calculate_prediction_confidence') else {}
-                    
-                    # Create prediction chart
-                    recent_data = historical_data.tail(20)
-                    historical_dates = recent_data.index
-                    historical_prices = recent_data['Close'].values
-                    future_dates = pd.date_range(start=historical_dates[-1] + pd.Timedelta(days=1), periods=pred_days, freq='D') if pd.api.types.is_datetime64_any_dtype(historical_dates) else pd.date_range(start=pd.Timestamp('2025-06-15') + pd.Timedelta(days=1), periods=pred_days, freq='D')
-                    
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(x=historical_dates, y=historical_prices, mode='lines', name='Historical Prices', line=dict(color='blue')))
-                    fig.add_trace(go.Scatter(x=future_dates, y=pred_prices, mode='lines+markers', name='Predicted Prices', line=dict(color='red', dash='dash')))
-                    fig.update_layout(title='7-Day Price Prediction', xaxis_title='Date', yaxis_title='Price ($)', hovermode='x unified', height=400)
-                    chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False})
-                    
-                    html_section += f"""
-                    <div class="chart-container">
-                        {chart_html}
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric"><strong>Predicted Change</strong><br>{change_pct:.2f}%</div>
-                        <div class="metric"><strong>Target Price</strong><br>${predicted_final:.2f}</div>
-                        <div class="metric"><strong>Confidence Score</strong><br>{confidence.get('score', 0):.1f}/10</div>
-                        <div class="metric"><strong>Prediction Volatility</strong><br>{confidence.get('volatility', 0):.2f}%</div>
-                    </div>
-                    """
-                    disclaimer = predictions.get_prediction_disclaimer() if hasattr(predictions, 'get_prediction_disclaimer') else "Predictions are for informational purposes only."
-                    html_section += f"<p><em>Disclaimer:</em> {html.escape(disclaimer)}</p>"
-                else:
-                    html_section += "<p>Unable to generate predictions.</p>"
+                if not pred_prices or not isinstance(pred_prices, (list, np.ndarray)) or len(pred_prices) != pred_days:
+                    pred_prices = [historical_data['Close'].iloc[-1]] * pred_days  # Fallback to current price if prediction fails
+                    print("Warning: Invalid or empty prediction data, using fallback prices")
+                
+                current_price = historical_data['Close'].iloc[-1] if 'Close' in historical_data.columns else 0
+                predicted_final = pred_prices[-1] if pred_prices else current_price
+                change_pct = ((predicted_final - current_price) / current_price) * 100 if current_price != 0 else 0
+                confidence = predictions.calculate_prediction_confidence() if hasattr(predictions, 'calculate_prediction_confidence') else {}
+                
+                # Create prediction chart
+                recent_data = historical_data.tail(20)
+                historical_dates = recent_data.index
+                historical_prices = recent_data['Close'].values if 'Close' in recent_data.columns else np.zeros(20)
+                future_dates = pd.date_range(start=historical_dates[-1] + pd.Timedelta(days=1), periods=pred_days, freq='D') if pd.api.types.is_datetime64_any_dtype(historical_dates) else pd.date_range(start=pd.Timestamp('2025-06-15') + pd.Timedelta(days=1), periods=pred_days, freq='D')
+                
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(x=historical_dates, y=historical_prices, mode='lines', name='Historical Prices', line=dict(color='blue')))
+                fig.add_trace(go.Scatter(x=future_dates, y=pred_prices, mode='lines+markers', name='Predicted Prices', line=dict(color='red', dash='dash')))
+                fig.update_layout(title='7-Day Price Prediction', xaxis_title='Date', yaxis_title='Price ($)', hovermode='x unified', height=400)
+                chart_html = pio.to_html(fig, full_html=False, config={'displayModeBar': False})
+                
+                # Create prediction table
+                html_section += f"""
+                <div class="chart-container">
+                    {chart_html}
+                </div>
+                <h3>Predicted Prices Table</h3>
+                <table>
+                    <tr><th>Date</th><th>Predicted Price ($)</th></tr>
+                """
+                for date, price in zip(future_dates, pred_prices):
+                    html_section += f"<tr><td>{date.strftime('%Y-%m-%d')}</td><td>{price:.2f}</td></tr>"
+                html_section += "</table>"
+                
+                html_section += f"""
+                <div class="metric-card">
+                    <div class="metric"><strong>Predicted Change</strong><br>{change_pct:.2f}%</div>
+                    <div class="metric"><strong>Target Price</strong><br>${predicted_final:.2f}</div>
+                    <div class="metric"><strong>Confidence Score</strong><br>{confidence.get('score', 0):.1f}/10</div>
+                    <div class="metric"><strong>Prediction Volatility</strong><br>{confidence.get('volatility', 0):.2f}%</div>
+                </div>
+                """
+                disclaimer = predictions.get_prediction_disclaimer() if hasattr(predictions, 'get_prediction_disclaimer') else "Predictions are for informational purposes only."
+                html_section += f"<p><em>Disclaimer:</em> {html.escape(disclaimer)}</p>"
             else:
                 html_section += "<p>Insufficient data for predictions (minimum 50 data points).</p>"
         except Exception as e:
