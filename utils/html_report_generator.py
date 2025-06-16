@@ -330,11 +330,11 @@ class HTMLReportGenerator:
             risk_metrics = analytics.calculate_risk_metrics() if hasattr(analytics, 'calculate_risk_metrics') else {}
             if risk_metrics:
                 html_section += "<h3>Risk Metrics</h3>"
-                html_section += "<div class="metric-card">"
+                html_section += '<div class="metric-card">'
                 for metric, value in risk_metrics.items():
                     value_str = f"{value:.2f}" if isinstance(value, (int, float)) else str(value)
                     html_section += f'<div class="metric"><strong>{html.escape(metric.replace("_", " ").title())}:</strong><br>{html.escape(value_str)}</div>'
-                html_section += "</div>"
+                html_section += '</div>'
             
             patterns = analytics.analyze_patterns() if hasattr(analytics, 'analyze_patterns') else {}
             if patterns:
