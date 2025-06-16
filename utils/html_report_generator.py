@@ -211,24 +211,29 @@ class HTMLReportGenerator:
             html_section += """
             <div class="chart-container">
                 <h3>Moving Averages</h3>
-                {ma_chart.to_html(include_plotlyjs=False, div_id='ma-chart')}
+                {0}
             </div>
             <div class="chart-container">
                 <h3>Relative Strength Index (RSI)</h3>
-                {rsi_chart.to_html(include_plotlyjs=False, div_id='rsi-chart')}
+                {1}
             </div>
             <div class="chart-container">
                 <h3>MACD Analysis</h3>
-                {macd_chart.to_html(include_plotlyjs=False, div_id='macd-chart')}
+                {2}
             </div>
             <div class="chart-container">
                 <h3>Bollinger Bands</h3>
-                {bb_chart.to_html(include_plotlyjs=False, div_id='bb-chart')}
+                {3}
             </div>
-            """
+            """.format(
+                ma_chart.to_html(include_plotlyjs=False, config={'displayModeBar': False}),
+                rsi_chart.to_html(include_plotlyjs=False, config={'displayModeBar': False}),
+                macd_chart.to_html(include_plotlyjs=False, config={'displayModeBar': False}),
+                bb_chart.to_html(include_plotlyjs=False, config={'displayModeBar': False})
+            )
         except Exception as e:
             html_section += f"<p>Error generating technical charts: {html.escape(str(e))}</p>"
-        return html_section.format(ma_chart=ma_chart, rsi_chart=rsi_chart, macd_chart=macd_chart, bb_chart=bb_chart)
+        return html_section
 
     def _generate_trading_signals_section(self, tech_indicators) -> str:
         """Generate trading signals analysis section."""
@@ -268,20 +273,24 @@ class HTMLReportGenerator:
             html_section += """
             <div class="chart-container">
                 <h3>Candlestick Chart</h3>
-                {candlestick_chart.to_html(include_plotlyjs=False, div_id='candlestick-chart')}
+                {0}
             </div>
             <div class="chart-container">
                 <h3>Price Trends</h3>
-                {trends_chart.to_html(include_plotlyjs=False, div_id='trends-chart')}
+                {1}
             </div>
             <div class="chart-container">
                 <h3>Volume Analysis</h3>
-                {volume_chart.to_html(include_plotlyjs=False, div_id='volume-chart')}
+                {2}
             </div>
-            """
+            """.format(
+                candlestick_chart.to_html(include_plotlyjs=False, config={'displayModeBar': False}),
+                trends_chart.to_html(include_plotlyjs=False, config={'displayModeBar': False}),
+                volume_chart.to_html(include_plotlyjs=False, config={'displayModeBar': False})
+            )
         except Exception as e:
             html_section += f"<p>Error generating price charts: {html.escape(str(e))}</p>"
-        return html_section.format(candlestick_chart=candlestick_chart, trends_chart=trends_chart, volume_chart=volume_chart)
+        return html_section
 
     def _generate_performance_metrics(self, data: pd.DataFrame) -> str:
         """Generate performance metrics table."""
@@ -379,7 +388,7 @@ class HTMLReportGenerator:
                         fig.add_trace(go.Scatter(x=historical_dates, y=historical_prices, mode='lines', name='Historical Prices', line=dict(color='blue', width=2)))
                         fig.add_trace(go.Scatter(x=future_dates, y=pred_data, mode='lines+markers', name=method_name, line=dict(color='red', width=2, dash='dash'), marker=dict(size=6)))
                         fig.update_layout(title=f"{method_name} - {prediction_days} Day Forecast", xaxis_title='Date', yaxis_title='Price ($)', hovermode='x unified', showlegend=True, height=400)
-                        chart_html = fig.to_html(include_plotlyjs=False, div_id=f"prediction_{method_key}")
+                        chart_html = fig.to_html(include_plotlyjs=False, config={'displayModeBar': False})
                         
                         html_section += f"""
                 <div class="chart-container">
@@ -450,7 +459,7 @@ class HTMLReportGenerator:
                     <div class="chart-container">
                         <h3>3D Price-Volume Analysis</h3>
                         <p>Three-dimensional visualization of price movements, volume, and time relationships.</p>
-                        {chart.to_html(include_plotlyjs=False, div_id='3d_price_volume')}
+                        {0}
                     </div>
                     """
                     content_added = True
@@ -461,7 +470,7 @@ class HTMLReportGenerator:
                     <div class="chart-container">
                         <h3>3D Technical Indicator Surface</h3>
                         <p>Surface plot showing relationships between multiple technical indicators.</p>
-                        {chart.to_html(include_plotlyjs=False, div_id='3d_technical_surface')}
+                        {0}
                     </div>
                     """
                     content_added = True
@@ -472,7 +481,7 @@ class HTMLReportGenerator:
                     <div class="chart-container">
                         <h3>3D Market Dynamics</h3>
                         <p>Multi-dimensional view of market behavior and trading patterns.</p>
-                        {chart.to_html(include_plotlyjs=False, div_id='3d_market_dynamics')}
+                        {0}
                     </div>
                     """
                     content_added = True
@@ -480,7 +489,7 @@ class HTMLReportGenerator:
                 html_section += "<p>No 3D visualizations available. Ensure visualization methods return valid charts.</p>"
         except Exception as e:
             html_section += f"<p>Error generating 3D charts: {html.escape(str(e))}</p>"
-        return html_section.format(chart=chart) if content_added else html_section
+        return html_section.format(chart.to_html(include_plotlyjs=False, config={'displayModeBar': False})) if content_added else html_section
 
     def _generate_advanced_analytics_section(self, advanced_analytics) -> str:
         """Generate advanced analytics section for HTML report."""
@@ -496,7 +505,7 @@ class HTMLReportGenerator:
                     <div class="chart-container">
                         <h3>Sector Performance Analysis</h3>
                         <p>Comparative performance across different market sectors.</p>
-                        {chart.to_html(include_plotlyjs=False, div_id='sector_performance')}
+                        {0}
                     </div>
                     """
                     content_added = True
@@ -507,7 +516,7 @@ class HTMLReportGenerator:
                     <div class="chart-container">
                         <h3>Market Correlation Analysis</h3>
                         <p>Heat map showing correlations between different market metrics and indicators.</p>
-                        {chart.to_html(include_plotlyjs=False, div_id='correlation_heatmap')}
+                        {0}
                     </div>
                     """
                     content_added = True
@@ -518,7 +527,7 @@ class HTMLReportGenerator:
                     <div class="chart-container">
                         <h3>Comprehensive Performance Dashboard</h3>
                         <p>Multi-metric dashboard showing key performance indicators and trends.</p>
-                        {chart.to_html(include_plotlyjs=False, div_id='performance_dashboard')}
+                        {0}
                     </div>
                     """
                     content_added = True
@@ -536,7 +545,7 @@ class HTMLReportGenerator:
                 html_section += "<p>No advanced analytics data available.</p>"
         except Exception as e:
             html_section += f"<p>Error generating advanced analytics: {html.escape(str(e))}</p>"
-        return html_section.format(chart=chart) if content_added else html_section
+        return html_section.format(chart.to_html(include_plotlyjs=False, config={'displayModeBar': False})) if content_added else html_section
 
     def save_report_to_file(self, html_content: str, filename: Optional[str] = None) -> str:
         """Save HTML report to file and return the filename."""
