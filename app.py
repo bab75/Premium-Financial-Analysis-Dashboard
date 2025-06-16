@@ -161,21 +161,39 @@ def data_upload_section():
         key="historical_data_file",
         help="Upload historical price data with Date, Open, High, Low, Close, Volume columns"
     )
-
+    
     if historical_file is not None:
         try:
             with st.spinner("Processing historical data..."):
-                processor = DataProcessor()
-                historical_data, extracted_symbol = processor.process_historical_data(historical_file)
+                # Temporary: Load file directly to debug
+                if historical_file.name.endswith('.csv'):
+                    historical_data = pd.read_csv(historical_file, encoding='utf-8', sep=',', engine='python')
+                else:
+                    historical_data = pd.read_excel(historical_file)
+                st.write(f"Directly loaded columns: {list(historical_data.columns)}")
+                extracted_symbol = None  # Placeholder for symbol extraction
+                
                 if historical_data is not None:
-                    # Validate and clean historical data
-                    required_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+                    # Clean column names (remove spaces, normalize case)
+                    historical_data.columns = [col.strip() for col in historical_data.columns]
+                    st.write(f"Cleaned columns: {list(historical_data.columns)}")
+                    
+                    # Rename 'Date' or variations to 'Datetime'
+                    column_mapping = {col: col for col in historical_data.columns}
+                    for col in historical_data.columns:
+                        if col.lower() in ['date', 'datetime', 'time']:
+                            column_mapping[col] = 'Datetime'
+                    historical_data = historical_data.rename(columns=column_mapping)
+                    
+                    # Validate required columns
+                    required_columns = ['Datetime', 'Open', 'High', 'Low', 'Close', 'Volume']
                     missing_cols = [col for col in required_columns if col not in historical_data.columns]
                     if missing_cols:
                         st.error(f"Missing required columns: {', '.join(missing_cols)}")
                     else:
-                        historical_data = historical_data.rename(columns={'Date': 'Datetime'})
-                        historical_data['Datetime'] = pd.to_datetime(historical_data['Datetime'])
+                        historical_data['Datetime'] = pd.to_datetime(historical_data['Datetime'], errors='coerce')
+                        if historical_data['Datetime'].isna().any():
+                            st.warning("Some datetime values could not be parsed and were set to NaN.")
                         historical_data = historical_data.set_index('Datetime')
                         if 'Adj Close' not in historical_data.columns:
                             historical_data['Adj Close'] = historical_data['Close']
