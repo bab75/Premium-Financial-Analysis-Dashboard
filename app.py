@@ -41,9 +41,7 @@ with st.sidebar:
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
-        st.session_state.clear()
-        st.experimental_rerun()
-
+       
 # Initialize session state
 if 'current_data' not in st.session_state:
     st.session_state.current_data = None
