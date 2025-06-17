@@ -40,7 +40,7 @@ with st.sidebar:
     if st.button("🗑️ Clear All Data", type="secondary", help="Refresh page to clear all data and start over"):
         for key in list(st.session_state.keys()):
             del st.session_state[key]
-        #st.rerun()
+        st.rerun()
         st.session_state.clear()
         st.experimental_rerun()
 
