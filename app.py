@@ -342,7 +342,7 @@ def phase1_comparative_analysis_section():
             - **Orange Zone (60-80%):** Higher risk, growth-focused
             - **Red Zone (80-100%):** High risk, aggressive investments
             - **Purple Zone (100%):** Extreme risk, highly aggressive investments
-            **Real-time Example:** If Market Risk shows 45%, Volatility shows 35%, and Performance shows 72%, your portfolio has moderate risk with good returns - ideal for balanced investors.
+            - **Real-time Example:** If Market Risk shows 45%, Volatility shows 35%, and Performance shows 72%, your portfolio has moderate risk with good returns - ideal for balanced investors.
             """)
         risk_gauge = RiskGauge()
         try:
