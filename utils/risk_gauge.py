@@ -94,8 +94,8 @@ class RiskGauge:
     
     def create_performance_gauge(self, performance: float) -> go.Figure:
         """Create performance gauge meter."""
-        # Convert performance to 0-100 scale
-        normalized_perf = min(100, max(0, (performance + 50)))
+        # If performance is already 0-100, use it directly
+        normalized_perf = min(100, max(0, performance))  # Remove +50 if not needed
         return self.create_risk_gauge(normalized_perf, "Performance Score")
     
     def create_advanced_dashboard(self, data: Dict) -> go.Figure:
