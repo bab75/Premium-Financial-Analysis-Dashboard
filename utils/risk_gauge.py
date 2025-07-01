@@ -23,69 +23,70 @@ class RiskGauge:
         }
     
     def create_risk_gauge(self, risk_score: float, title: str = "Risk Level") -> go.Figure:
-    """Create a professional gauge meter for risk assessment."""
-    
-    # Determine risk level and color based on screenshot thresholds
-    if risk_score <= 30:
-        risk_level = "Low Risk"
-        color = self.risk_colors['low']
-    elif risk_score <= 60:
-        risk_level = "Medium Risk"
-        color = self.risk_colors['medium']
-    elif risk_score <= 80:
-        risk_level = "High Risk"
-        color = '#ff9500'  # Orange for High Risk
-    else:
-        risk_level = "Extreme Risk"
-        color = self.risk_colors['high']  # Red for Extreme Risk
+        """Create a professional gauge meter for risk assessment."""
         
-    fig = go.Figure(go.Indicator(
-        mode = "gauge+number",
-        value = risk_score,
-        title = {'text': title, 'font': {'size': 16}},
-        domain = {'x': [0, 1], 'y': [0, 1]},
-        number = {
-            'font': {'size': 40, 'color': color, 'family': 'Arial Black'}, 
-            'suffix': "%",
-            'valueformat': '.0f'
-        },
-        gauge = {
-            'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "darkblue", 'tickfont': {'size': 12}},
-            'bar': {'color': color, 'thickness': 0.25},
-            'bgcolor': "white",
-            'borderwidth': 2,
-            'bordercolor': "gray",
-            'steps': [
-                {'range': [0, 30], 'color': '#e8f5e8'},    # Light Green
-                {'range': [30, 60], 'color': '#fff3cd'},    # Light Yellow
-                {'range': [60, 80], 'color': '#ffd699'},    # Light Orange
-                {'range': [80, 100], 'color': '#f8d7da'}    # Light Red
-            ],
-            'threshold': {
-                'line': {'color': "red", 'width': 4},
-                'thickness': 0.75,
-                'value': 90
+        # Determine risk level and color
+        if risk_score <= 25:
+            risk_level = "Low Risk"
+            color = self.risk_colors['low']
+        elif risk_score <= 50:
+            risk_level = "Medium Risk"
+            color = self.risk_colors['medium']
+        elif risk_score <= 75:
+            risk_level = "High Risk"
+            color = self.risk_colors['high']
+        else:
+            risk_level = "Extreme Risk"
+            color = self.risk_colors['extreme']
+        
+        fig = go.Figure(go.Indicator(
+            mode = "gauge+number",
+            value = risk_score,
+            title = {'text': title, 'font': {'size': 16}},
+            domain = {'x': [0, 1], 'y': [0, 1]},
+            number = {
+                'font': {'size': 40, 'color': color, 'family': 'Arial Black'}, 
+                'suffix': "%",
+                'valueformat': '.0f'
+            },
+            gauge = {
+                'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "darkblue", 'tickfont': {'size': 12}},
+                'bar': {'color': color, 'thickness': 0.25},
+                'bgcolor': "white",
+                'borderwidth': 2,
+                'bordercolor': "gray",
+                'steps': [
+                    {'range': [0, 25], 'color': '#e8f5e8'},
+                    {'range': [25, 50], 'color': '#fff3cd'},
+                    {'range': [50, 75], 'color': '#f8d7da'},
+                    {'range': [75, 100], 'color': '#e2d9f3'}
+                ],
+                'threshold': {
+                    'line': {'color': "red", 'width': 4},
+                    'thickness': 0.75,
+                    'value': 90
+                }
             }
-        }
-    ))
-    
-    fig.add_annotation(
-        text=f"<b>{risk_level}</b>",
-        xref="paper", yref="paper",
-        x=0.5, y=-0.1,
-        showarrow=False,
-        font=dict(size=12, color=color),
-        align="center"
-    )
-    
-    fig.update_layout(
-        paper_bgcolor="white",
-        font={'color': "darkblue", 'family': "Arial"},
-        height=280,
-        margin=dict(l=10, r=10, t=30, b=35)
-    )
-    
-    return fig
+        ))
+        
+        # Add risk level text below gauge (moved down to prevent overlap)
+        fig.add_annotation(
+            text=f"<b>{risk_level}</b>",
+            xref="paper", yref="paper",
+            x=0.5, y=-0.1,
+            showarrow=False,
+            font=dict(size=12, color=color),
+            align="center"
+        )
+        
+        fig.update_layout(
+            paper_bgcolor = "white",
+            font = {'color': "darkblue", 'family': "Arial"},
+            height=280,
+            margin=dict(l=10, r=10, t=30, b=35)
+        )
+        
+        return fig
     
     def create_volatility_gauge(self, volatility: float) -> go.Figure:
         """Create volatility gauge meter."""
